@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion du compte</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #aaa;
+            padding: 20px;
+            border-radius: 25px;
+        }
+        form {
+            margin-top: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .formLine{
+            height: 50px; 
+            margin-bottom:20px; 
+            margin-top: 10px;
+            text-align: left;
+        }
+        /* .formLine input{
+            margin-bottom: 10px;
+            display: block;
+        } */
+        .formLine input{
+            width: 80%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Gestion du compte</h2>
+        
+        <p>Que souhaitez-vous faire?</p>
+
+        <form action="/traiter-demande" method="post">
+            <div class="formLine">
+                <label for="raison">Raison de l'action:</label> <br>
+                <input type="text" id="raison" name="raison" required>
+            </div>
+
+            <div class="formLine">
+                <label for="email">Email associé au compte:</label> <br>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="formLine">
+                <label for="telephone">Téléphone associé au compte:</label> <br>
+                <input type="tel" id="telephone" name="telephone" required>
+            </div>
+
+            <div>
+                <button type="submit" name="action" value="retirer-donnees">Retirer mes données</button>
+                <button type="submit" name="action" value="supprimer-compte">Demander la suppression de mon compte</button>
+            </div>
+
+        </form>
+    </div>
+</body>
+</html>
