@@ -52,7 +52,6 @@
                                             @foreach ($roles as $item)
                                                 <option value="{{ $item->id }}">{{ $item->libelle }}</option>
                                             @endforeach
-                                            <option value="admin">Admin</option>
                                         </select>
                                     </div>
                                 </div>

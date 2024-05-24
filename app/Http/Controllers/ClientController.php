@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\Recharge;
 use App\Models\UserCard;
 use App\Models\UserCardBuy;
+use App\Models\AccountCommission;
+use App\Models\AccountCommissionOperation;
 use Ramsey\Uuid\Uuid;
 use App\Services\PaiementService;
 use App\Services\CardService;
@@ -227,9 +229,19 @@ class ClientController extends Controller
 
     public function clientsRejetes(Request $request){
         try{
-            $userClients = UserClient::where('deleted',0)->where('is_rejected',1)->orderBy('created_at','desc')->get();
+            $userClients = UserClient::where('deleted',0)->where('is_rejected',1)->orderBy('updated_at','desc')->get();
             $countries = $this->countries;
             return view('clients.rejetes',compact('userClients','countries'));
+        } catch (\Exception $e) {
+            return back()->withError($e->getMessage());
+        }
+    }
+
+    public function clientsNonCompletes(Request $request){
+        try{
+            $userClients = UserClient::where('deleted',0)->where('verification_step_one',1)->where('verification','<>',1)->orderBy('created_at','desc')->get();
+            $countries = $this->countries;
+            return view('clients.noncompletes',compact('userClients','countries'));
         } catch (\Exception $e) {
             return back()->withError($e->getMessage());
         }
@@ -318,8 +330,12 @@ class ClientController extends Controller
                     }
                 }else{
                     $momoCredited = $paiementService->momoCredited($response->client->phone, $response->amount,$user);
-                    if($momoCredited != false){
-                        
+
+                    if($momoCredited == "FAILED"){
+                        return back()->withWarning("Echec lors du remboursement de la transaction");
+                    }else if($momoCredited == "FAILED_TIME"){
+                        return back()->withWarning("Echec du a un temps d'attente trop long");
+                    }else{
                         $depot->status = 'refunded';
                         $depot->refunded_at = Carbon::now();
                         $depot->refunder_id = $user->id;
@@ -330,8 +346,6 @@ class ClientController extends Controller
 
                         $message = ['success' => true, 'status' => 200,'message' => 'Remboursement du rechargement client','timestamp' => Carbon::now(),'user' => $user->id]; 
                         writeLog($message); 
-                    }else{
-                        return back()->withWarning("Echec lors du remboursement de la transaction");
                     }
                 }
             }else if($request->type_operation == 'Transfert'){
@@ -385,7 +399,11 @@ class ClientController extends Controller
                     }
                 }else{
                     $momoCredited = $paiementService->momoCredited($response->client->phone, $response->amount,$user);
-                    if($momoCredited != false){                        
+                    if($momoCredited == "FAILED"){
+                        return back()->withWarning("Echec lors du remboursement de la transaction");
+                    }else if($momoCredited == "FAILED_TIME"){
+                        return back()->withWarning("Echec du a un temps d'attente trop long");
+                    }else{
                         $achat->status = 'refunded';
                         $achat->refunded_at = Carbon::now();
                         $achat->refunder_id = $user->id;
@@ -396,8 +414,6 @@ class ClientController extends Controller
 
                         $message = ['success' => true, 'status' => 200,'message' => 'Remboursement du rechargement client','timestamp' => Carbon::now(),'user' => $user->id]; 
                         writeLog($message); 
-                    }else{
-                        return back()->withWarning("Echec lors du remboursement de la transaction");
                     }
                 }
             }
@@ -487,7 +503,7 @@ class ClientController extends Controller
                     if (strlen($name) > 19){
                         $name = substr($name, 0, 19);
                     }
-                    $address = substr($user->kycClient->address, 0, 25);
+                    $address = substr($user->kycClient->address, 0, 10);
                     
                     $body = [
                         "firstName" => $user->kycClient->name,
@@ -510,6 +526,7 @@ class ClientController extends Controller
                         "subCompany" => $accountId,
                         "return" => "RETURNPASSCODE"
                     ];    
+                    //dd($body);
                     $body = json_encode($body,JSON_THROW_ON_ERROR);
                     
                     $headers = [

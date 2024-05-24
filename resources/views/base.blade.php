@@ -245,6 +245,7 @@
                                     <li @if (Route::currentRouteName() == 'admin.clients') class="active" @endif><a href="/clients"><i class="fa fa-circle-o"></i> Liste des comptes</a></li>
                                     <li @if (Route::currentRouteName() == 'admin.clients.attentes') class="active" @endif><a href="/clients/attentes"><i class="fa fa-circle-o"></i> Comptes attentes</a></li>
                                     <li @if (Route::currentRouteName() == 'admin.clients.rejetes') class="active" @endif><a href="/clients/rejetes"><i class="fa fa-circle-o"></i> Compte rejetés</a></li>
+                                    <li @if (Route::currentRouteName() == 'admin.clients.non.completes') class="active" @endif><a href="/clients/non/completes"><i class="fa fa-circle-o"></i> Compte non complétés</a></li>
                                 @endif
                                 @if (hasPermission('admin.client.operations.attentes'))
                                     <li @if (Route::currentRouteName() == 'admin.client.operations.attentes') class="active" @endif><a href="/clients/operations/attentes"><i class="fa fa-circle-o"></i> Opérations en attentes</a></li>
@@ -319,6 +320,11 @@
                         <li>
                             <a href="/rapport/transactions/partenaires">
                                 <i class="fa fa-file-pdf-o"></i> <span>Opérations des partenaires</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/rapport/transactions/apporteurs">
+                                <i class="fa fa-file-pdf-o"></i> <span>Opérations des apporteurs</span>
                             </a>
                         </li>
                     @endif

@@ -62,24 +62,6 @@ function checkPayment($method, $reference, $amount)
     } else {
       return 'not_success';
     }
-  } else {
-    $public_key = env('API_KEY_KKIAPAY');
-    $private_key = env('PRIVATE_KEY_KKIAPAY');
-    $secret = env('SECRET_KEY_KKIAPAY');
-
-    $kkiapay = new \Kkiapay\Kkiapay($public_key, $private_key, $secret);
-
-    $response = $kkiapay->verifyTransaction($reference);
-    return $response;
-    if ($response->status == 'SUCCESS') {
-      if ($response->amount == $amount) {
-        return 'success';
-      } else {
-        return 'bad_amount';
-      }
-    } else {
-      return 'not_success';
-    }
   }
 }
 

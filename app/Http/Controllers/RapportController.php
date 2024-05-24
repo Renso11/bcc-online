@@ -12,6 +12,7 @@ use App\Models\PartnerWalletWithdraw;
 use App\Models\Recharge;
 use App\Models\RechargementPartenaire;
 use App\Models\TransfertOut;
+use App\Models\Apporteur;
 use App\Models\UserCardBuy;
 use Barryvdh\DomPDF\Facade\Pdf as FacadePdf;
 
@@ -244,6 +245,7 @@ class RapportController extends Controller
                 $depot->type = 'Depot';
                 $depot->partenaire = $depot->partenaire;
                 $depot->userClient = $depot->userClient;
+                $depot->userCard = $depot->userCard;
             }
             $transactions = array_merge($transactions, $depots->toArray());
         }
@@ -266,13 +268,14 @@ class RapportController extends Controller
                 $retrait->type = 'Retrait';
                 $retrait->partenaire = $retrait->partenaire;
                 $retrait->userClient = $retrait->userClient;
+                $retrait->userCard = $retrait->userCard;
             }
             $transactions = array_merge($transactions, $retraits->toArray());
         }
 
         $nbApprovisionnements = $sumApprovisionnements = $sumFraisApprovisionnements = 0;
         if(($request->type_operations && in_array('approvisionnement',$request->type_operations)) || ($request->type_operations && in_array('all',$request->type_operations))){
-            $approvisionnements = RechargementPartenaire::whereIn('status',$status)->where('deleted',0);
+            $approvisionnements = RechargementPartenaire::whereIn('status',$status)->whereIn('partenaire_id',$partenaires)->where('deleted',0);
             
             if($debut != null){
                 $approvisionnements = $approvisionnements->where('created_at','>',$debut);
@@ -294,7 +297,7 @@ class RapportController extends Controller
 
         $nbRecharges = $sumRecharges = $sumFraisRecharges = 0;
         if(($request->type_operations && in_array('rechargement',$request->type_operations)) || ($request->type_operations && in_array('all',$request->type_operations))){
-            $recharges = PartnerWalletDeposit::whereIn('status',$status)->where('deleted',0);
+            $recharges = PartnerWalletDeposit::whereIn('status',$status)->whereIn('partenaire_id',$partenaires)->where('deleted',0);
             
             if($debut != null){
                 $recharges = $recharges->where('created_at','>',$debut);
@@ -317,7 +320,7 @@ class RapportController extends Controller
 
         $nbCashouts = $sumCashouts = $sumFraisCashouts = 0;
         if(($request->type_operations && in_array('cashout',$request->type_operations)) || ($request->type_operations && in_array('all',$request->type_operations))){
-            $cashouts = PartnerWalletWithdraw::whereIn('status',$status)->where('deleted',0);
+            $cashouts = PartnerWalletWithdraw::whereIn('status',$status)->whereIn('partenaire_id',$partenaires)->where('deleted',0);
             
             if($debut != null){
                 $cashouts = $cashouts->where('created_at','>',$debut);
@@ -341,7 +344,7 @@ class RapportController extends Controller
 
         $nbCessions = $sumCessions = $sumFraisCessions = 0;
         if(($request->type_operations && in_array('cession',$request->type_operations)) || ($request->type_operations && in_array('all',$request->type_operations))){
-            $cessions = PartnerCession::whereIn('status',$status)->where('deleted',0);
+            $cessions = PartnerCession::whereIn('status',$status)->whereIn('partenaire_id',$partenaires)->where('deleted',0);
             
             if($debut != null){
                 $cessions = $cessions->where('created_at','>',$debut);
@@ -361,7 +364,7 @@ class RapportController extends Controller
             }
             $transactions = array_merge($transactions, $cessions->toArray());
         }
-        
+        //dump($transactions);die();
         usort($transactions, 'date_compare');
 
         $statNb = $statSum = $statFrais = [];
@@ -399,5 +402,63 @@ class RapportController extends Controller
         $pdf = FacadePdf::loadView('rapport.pdf_transactions.partenaire',$transaction_partenaires);
         $pdf->setPaper('A4', 'landscape');
         return $pdf->download ('Rapport des transactions partenaires.pdf');
+    }
+
+    public function rapportTransactionApporteur(){
+        $apporteurs = Apporteur::where('deleted',0)->get();
+        return view('rapport.transactions.apporteur',compact('apporteurs'));
+    }
+
+    public function searchTransactionApporteur(Request $request){
+        try{
+            $debut = $request->debut ? explode('T',$request->debut)[0].' '.explode('T',$request->debut)[1].':00' : null;
+            $fin = $request->fin ? explode('T',$request->fin)[0].' '.explode('T',$request->fin)[1].':00' : null;
+    
+    
+            if ($request->status == null){
+                $status = ['pending','completed','cancelled','refunded'];
+            }else{
+                $status = in_array('all', $request->status) ? ['pending','completed','cancelled','refunded'] : $request->status;
+            }
+    
+            $apporteurs = in_array('all', $request->apporteurs) ? Apporteur::where('deleted',0)->pluck('id') : $request->apporteurs;
+
+            $buys = UserCardBuy::whereIn('status',$status)->where('deleted',0)->whereIn('apporteur_id',$apporteurs);
+            $operations = Apporteur::where('deleted',0)->whereIn('apporteur_id',$apporteurs);
+    
+            if($debut != null){
+                $buys = $buys->where('created_at','>',$debut);
+            }
+            if($fin != null){
+                $buys = $buys->where('created_at','<',$fin);
+            }
+            
+    
+            $sumBuys = $buys->sum('montant');
+            $buys = $buys->orderBy('created_at','DESC')->get();
+            $nbBuys = count($buys);
+    
+            foreach($buys as $buy){
+                $buy->date = $buy->created_at->format('d-m-Y H:i:s');
+                $buy->userClient;
+            }
+            //dump($buys);die();
+    
+            session()->push('transaction_apporteurs',compact('buys','nbBuys','sumBuys'));        
+            return view('rapport.etat_transactions.apporteur',compact('buys','nbBuys','sumBuys'));
+        } catch (\Exception $e) {
+            dump($e);die();
+            return back()->withError($e->getMessage());
+        }
+    }
+
+    public function downloadTransactionApporteur(Request $request){
+        
+        $lastKey = array_key_last(session()->get('transaction_apporteurs'));
+        $transaction_apporteurs = session()->get('transaction_apporteurs')[$lastKey];
+        
+        $pdf = FacadePdf::loadView('rapport.pdf_transactions.apporteur',$transaction_apporteurs);
+        $pdf->setPaper('A4', 'landscape');
+        return $pdf->download('Rapport des transactions apporteurs.pdf');
     }
 }

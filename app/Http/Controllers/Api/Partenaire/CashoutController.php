@@ -276,10 +276,11 @@ class CashoutController extends Controller
                 }else{
                     $libelle = 'le compte '.$wallet->type.' '.$wallet->phone_code.$wallet->phone ;
                     $momoCredited = $paiementService->momoCredited($wallet->phone_code.$wallet->phone, $montant, $userPartenaire);
-
-                    if($momoCredited == false){
-                        return sendError('Probleme lors du credit du compte '.$wallet->type, [], 500);                     
-                    }else{    
+                    if($momoCredited == "FAILED"){
+                        return sendError('Echec lors du remboursement de la transaction', [], 500); 
+                    }else if($momoCredited == "FAILED_TIME"){
+                        return sendError('Echec du a un temps d\'attente trop long', [], 500);
+                    }else{
                         $retrait->libelle = 'Cashout vers '.$libelle;
                         $retrait->reference = $momoCredited->transactionId;
                         $retrait->status = 'completed';
@@ -424,10 +425,11 @@ class CashoutController extends Controller
                 }else{
                     $libelle = 'le compte '.$wallet->type.' '.$wallet->phone_code.$wallet->phone ;
                     $momoCredited = $paiementService->momoCredited($wallet->phone_code.$wallet->phone, $montant, $userPartenaire);
-
-                    if($momoCredited == false){
-                        return sendError('Probleme lors du credit du compte '.$wallet->type, [], 500);                     
-                    }else{    
+                    if($momoCredited == "FAILED"){
+                        return sendError('Echec lors du remboursement de la transaction', [], 500); 
+                    }else if($momoCredited == "FAILED_TIME"){
+                        return sendError('Echec du a un temps d\'attente trop long', [], 500);
+                    }else{
                         $retrait->libelle = 'Cashout vers '.$libelle;
                         $retrait->reference = $momoCredited->transactionId;
                         $retrait->status = 'completed';

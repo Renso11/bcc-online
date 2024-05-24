@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Apporteur;
 use App\Models\UserCardBuy;
 use App\Models\ApporteurOperation;
+use App\Models\UserClient;
 use Illuminate\Http\Request;
 use App\Services\PaiementService;
 use Ramsey\Uuid\Uuid;
@@ -82,7 +83,7 @@ class ApporteurController extends Controller
             return sendError("Apporteur introuvable, verifier l'ID", [], 404);
         }
 
-        $operations =  ApporteurOperation::where('deleted', 0)->where('apporteur_id', $apporteur->id)->paginate(10);
+        $operations =  ApporteurOperation::where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->paginate(10);
 
         return sendResponse($operations, 'Operations');
     }
@@ -94,7 +95,7 @@ class ApporteurController extends Controller
             return sendError("Apporteur introuvable, verifier l'ID", [], 404);
         }
 
-        $activations =  UserCardBuy::with('apporteur')->with('userClient')->with('userCard')->where('deleted', 0)->where('apporteur_id', $apporteur->id)->paginate(10);
+        $activations =  UserCardBuy::with('apporteur')->with('userClient')->with('userCard')->where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->paginate(10);
 
         return sendResponse($activations, 'Activations');
     }
@@ -158,7 +159,7 @@ class ApporteurController extends Controller
         }
 
         if ($apporteur->solde_commission < $montant) {
-            return sendError("Solde insuffisant pour cette operation", [], 401);
+            return sendError("Solde insuffisant pour cette operation", [], 403);
         }
 
         if($request->moyen == 'bcv'){
@@ -174,7 +175,8 @@ class ApporteurController extends Controller
 
             $receiverFirstCard =  $receiver->userCard->first();
 
-            $reference_memo_gtp = unaccent('Retrait de commission de l\'apporteur '. $apporteur->lastname . ' ' . $apporteur->name . '. Montant : '. $montant .' XOF');
+            $reference_memo_gtp = unaccent('Retrait apporteur '. $apporteur->lastname . ' ' . $apporteur->name);
+
             $bcvCredited = $paiementService->cardCredited($receiverFirstCard->customer_id, $receiverFirstCard->last_digits, $montant, $apporteur, $reference_memo_gtp);
 
             if($bcvCredited == false){
@@ -186,7 +188,7 @@ class ApporteurController extends Controller
     
                 ApporteurOperation::insert([
                     'id' => Uuid::uuid4()->toString(),
-                    'apporteur_id' => $amount->id,
+                    'apporteur_id' => $apporteur->id,
                     'montant' => $montant,
                     'libelle' => 'Retrait sur le compte de commission vers compte BCV liée',
                     'sens' => 'debit',
@@ -219,5 +221,29 @@ class ApporteurController extends Controller
         }
 
         return sendResponse($apporteur, 'Retrait effectuée avec succes');
+    }
+
+    public function getOperationsAll(Request $request){
+        $apporteur =  Apporteur::where('id', $request->id)->first();
+
+        if (!$apporteur) {
+            return sendError("Apporteur introuvable, verifier l'ID", [], 404);
+        }
+
+        $operations =  ApporteurOperation::where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->get();
+
+        return sendResponse($operations, 'Operations');
+    }
+
+    public function getActivationsAll(Request $request){
+        $apporteur =  Apporteur::where('id', $request->id)->first();
+
+        if (!$apporteur) {
+            return sendError("Apporteur introuvable, verifier l'ID", [], 404);
+        }
+
+        $activations =  UserCardBuy::with('apporteur')->with('userClient')->with('userCard')->where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->get();
+
+        return sendResponse($activations, 'Activations');
     }
 }

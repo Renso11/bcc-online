@@ -388,20 +388,21 @@ class PartenaireController extends Controller
                     }
                 }else{
                     $momoCredited = $paiementService->momoCredited($response->client->phone, $response->amount,Auth::user());
-                    if($momoCredited != false){
-                        
+                    if($momoCredited == "FAILED"){
+                        return back()->withWarning("Echec lors du remboursement de la transaction");
+                    }else if($momoCredited == "FAILED_TIME"){
+                        return back()->withWarning("Echec du a un temps d'attente trop long");
+                    }else{
                         $appro->status = 'refunded';
                         $appro->refunded_at = Carbon::now();
                         $appro->refunder_id = Auth::user()->id;
-                        $appro->refunded_reference = $response->transaction_id;
+                        $appro->refunded_reference = $momoCredited->transactionId;
                         $appro->save();
                             
                         //Voir que message envoyé au client a l'annulation
 
                         $message = ['success' => true, 'status' => 200,'message' => 'Remboursement du rechargement client','timestamp' => Carbon::now(),'user' => Auth::user()->id]; 
                         writeLog($message); 
-                    }else{
-                        return back()->withWarning("Echec lors du remboursement de la transaction");
                     }
                 }
 

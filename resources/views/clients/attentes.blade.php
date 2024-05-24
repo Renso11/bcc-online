@@ -20,6 +20,7 @@
                             <table class="table table-bordered table-striped example1">
                                 <thead>
                                     <tr>
+                                        <th>Date de création</th>
                                         <th>Nom et prénoms</th>
                                         <th>Telephone</th>
                                         <th>Status</th>
@@ -30,6 +31,7 @@
                                 <tbody>
                                     @foreach ($userClients as $item)
                                         <tr>
+                                            <td>{{ $item->created_at->format('d-m-Y H:i:s') }}</td>
                                             <td>{{ $item->lastname.' '.$item->name }}</td>
                                             <td>{{ $item->username }}</td>
                                             <td>@if($item->status == 0) <span class="label label-danger">Inactif</span> @else <span class="label label-success">Actif</span> @endif</td>

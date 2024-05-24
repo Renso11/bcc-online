@@ -92,6 +92,8 @@ Route::post('apporteur/login', [ApporteurController::class, 'login'])->name('log
 Route::get('get/balance/apporteur/{id}', [ApporteurController::class, 'getBalance'])->name('getBalanceApporteur');
 Route::get('get/operations/apporteur/{id}', [ApporteurController::class, 'getOperations'])->name('getOperationsApporteur');
 Route::get('get/activations/apporteur/{id}', [ApporteurController::class, 'getActivations'])->name('getActivationsApporteur');
+Route::get('get/operations/apporteur/all/{id}', [ApporteurController::class, 'getOperationsAll'])->name('getOperationsApporteur');
+Route::get('get/activations/apporteur/all/{id}', [ApporteurController::class, 'getActivationsAll'])->name('getActivationsApporteur');
 
 Route::get('regenerate/code-promo/apporteur/{id}', [ApporteurController::class, 'regenerateCode'])->name('regenerateCodeApporteur');
 Route::post('change/password/apporteur/{id}', [ApporteurController::class, 'changePassword'])->name('changePasswordApporteur');
@@ -103,6 +105,8 @@ Route::get('get/questions/all', [ClientController::class, 'getQuestionsAll'])->n
 Route::post('reset/password/with/questions', [ClientController::class, 'resetPasswordWithQuestions'])->name('resetPasswordWithQuestions');
 
 Route::post('save/front/payment', [ClientController::class, 'saveFrontPayment'])->name('saveFrontPayment');
+
+Route::post('/callback/kkiapay', [ClientController::class, 'callBackKkiapay'])->name('callBackKkiapay');
 
 
 

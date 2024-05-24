@@ -21,16 +21,253 @@ use App\Models\Apporteur;
 use App\Models\ApporteurOperation;
 use App\Services\PaiementService;
 use Ramsey\Uuid\Uuid;
+use Illuminate\Support\Facades\Log;
 
 class CardController extends Controller
 {
+
+    public function initCardPurchase(Request $request){
+        
+        try{
+            $base_url = env('BASE_GTP_API');
+            $accountId = env('AUTH_DISTRIBUTION_ACCOUNT');
+            $programID = env('PROGRAM_ID');
+            $authLogin = env('AUTH_LOGIN');
+            $authPass = env('AUTH_PASS');
+            $encrypt_Key = env('ENCRYPT_KEY');
+            
+            $validator = Validator::make($request->all(), [
+                'user_id' => ["required" , "string"],
+                'transaction_id' => ["required" , "string"],
+                'montant' => ["required" , "integer"],
+                'promo_code' => ["nullable" , "string"],
+                'type' => ["required" , "max:255", "regex:(kkiapay|bmo)"],
+            ]);
+
+
+            if ($validator->fails()) {
+                return  sendError($validator->errors()->first(), [],422);
+            }
+
+            $userClient = UserClient::where('id',$request->user_id)->first();
+
+            if($userClient->verification == 0){
+                return response()->json([
+                    'message' => 'Ce compte n\'est pas encore validé',
+                ], 401);
+            }
+
+            $montant = $request->montant;
+            $partenaire = $app =  null;
+
+            if($request->promo_code){
+                $userPartenaire = UserPartenaire::where('promo_code',$request->promo_code)->first();
+                $apporteur = Apporteur::where('code_promo',$request->promo_code)->first();
+                $montant = $montant - 500;
+
+                if (!$userPartenaire && !$apporteur) {
+                    return sendError('Code promo inexistant',[], 404);
+                }else if($userPartenaire){
+                    $partenaire = $userPartenaire->partenaire->id;
+                }else if($apporteur){
+                    $app = $apporteur->id;
+                }  
+            }          
+
+            $userCardBuy = UserCardBuy::create([
+                'id' => Uuid::uuid4()->toString(),
+                'moyen_paiement' => $request->type,
+                'reference_paiement' => $request->transaction_id,
+                'montant' => $montant,
+                'user_client_id' => $request->user_id,
+                'status' => 'pending',
+                'partenaire_id' => $partenaire,
+                'apporteur_id' => $app,
+                'deleted' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ]);
+
+            if($request->type == 'kkiapay'){                
+                ClientTransaction::create([
+                    'id' => Uuid::uuid4()->toString(),
+                    'reference' => $request->reference,
+                    'type' => "achat_carte",
+                    'type_id' => $userCardBuy->id,
+                    'deleted' => 0,
+                    'created_at' => Carbon::now(),
+                    'updated_at' => Carbon::now(),
+                ]);
+                return sendResponse($card, 'Paiement effectué.. Votre achat est en cours de verification');
+            }else{
+                $paymentVerification = $paiementService->paymentVerification($request->type, $request->transaction_id, $request->montant, $userClient->id);
+                
+                if($paymentVerification == true){
+                    $userCardBuy->is_debited = 1;
+                    $userCardBuy->save();
+    
+                    $client = new Client();
+                    $url = $base_url."accounts/virtual";
+                    
+                    $name = $userClient->kycClient->name.' '.$userClient->kycClient->lastname;
+                    if (strlen($name) > 19){
+                        $name = substr($name, 0, 19);
+                    }
+                    $address = substr($userClient->kycClient->address, 0, 25);
+                    
+                    $body = [
+                        "firstName" => $userClient->kycClient->name,
+                        "lastName" => $userClient->kycClient->lastname,
+                        "preferredName" => unaccent($name),
+                        "address1" => $address,
+                        "city" => $userClient->kycClient->city,
+                        "country" => $userClient->kycClient->country,
+                        "stateRegion" => $userClient->kycClient->departement,
+                        "birthDate" =>  $userClient->kycClient->birthday,
+                        "idType" => $userClient->kycClient->piece_type,
+                        "idValue" => $userClient->kycClient->piece_id,
+                        "mobilePhoneNumber" => [
+                            "countryCode" => explode(' ',$userClient->kycClient->telephone)[0],
+                            "number" =>  explode(' ',$userClient->kycClient->telephone)[1],
+                        ],
+                        "emailAddress" => $userClient->kycClient->email,
+                        "accountSource" => "OTHER",
+                        "referredBy" => $accountId,
+                        "subCompany" => $accountId,
+                        "return" => "RETURNPASSCODE"
+                    ];    
+                    $body = json_encode($body);
+                    
+                    $headers = [
+                        'programId' => $programID,
+                        'requestId' => Uuid::uuid4()->toString(),
+                        'Content-Type' => 'application/json', 'Accept' => 'application/json'
+                    ];
+    
+                    $auth = [
+                        $authLogin,
+                        $authPass
+                    ];
+                    
+                    try {
+                        $response = $client->request('POST', $url, [
+                            'auth' => $auth,
+                            'headers' => $headers,
+                            'body' => $body,
+                            'verify'  => false,
+                        ]);    
+                        $responseBody = json_decode($response->getBody());
+        
+                        $oldCard = UserCard::where('deleted',0)->where('user_client_id',$userClient->id)->get();
+                        $firstly = 0;
+                        if(count($oldCard) == 0){
+                            $firstly = 1;
+                        }
+        
+                        $card = UserCard::create([
+                            'id' => Uuid::uuid4()->toString(),
+                            'user_client_id' => $userClient->id,
+                            'last_digits' => encryptData((string)$responseBody->registrationLast4Digits,$encrypt_Key),
+                            'customer_id' => encryptData((string)$responseBody->registrationAccountId,$encrypt_Key),
+                            'type' => $request->type,
+                            'is_first' => $firstly,
+                            'pass_code' => encryptData((string)$responseBody->registrationPassCode,$encrypt_Key),
+                            'is_buy' => 1,
+                            'deleted' => 0,
+                            'created_at' => Carbon::now(),
+                            'updated_at' => Carbon::now(),
+                        ]);
+    
+                        $userCardBuy->user_card_id = $card->id;
+                        $userCardBuy->status = 'completed';
+                        $userCardBuy->save();
+    
+                        if($request->promo_code){
+                            if($userPartenaire){
+                                $compteCommissionPartenaire = AccountCommission::where('partenaire_id',$partenaire)->first();
+                                $soldeAvIncr = $compteCommissionPartenaire->solde;
+                                $compteCommissionPartenaire->solde += 400;
+                                $compteCommissionPartenaire->save();
+                                
+                                $soldeApIncr = $compteCommissionPartenaire->solde;
+                    
+                                AccountCommissionOperation::insert([
+                                    'id' => Uuid::uuid4()->toString(),
+                                    'reference_gtp'=> '',
+                                    'solde_avant' => $soldeAvIncr,
+                                    'montant' => 400,
+                                    'solde_apres' => $soldeApIncr,
+                                    'libelle' => 'Commission pour achat de carte par code promo',
+                                    'type' => 'credit',
+                                    'account_commission_id' => $compteCommissionPartenaire->id,
+                                    'deleted' => 0,
+                                    'created_at' => Carbon::now(),
+                                    'updated_at' => Carbon::now(),            
+                                ]);
+                            }else if($apporteur){
+                                $compteCommissionApporteur = Apporteur::where('id',$app)->first();
+                                $compteCommissionApporteur->solde_commission += 400;
+                                $compteCommissionApporteur->save();
+                                
+                    
+                                ApporteurOperation::insert([
+                                    'id' => Uuid::uuid4()->toString(),
+                                    'apporteur_id' => $app,
+                                    'montant' => 400,
+                                    'libelle' => 'Commission pour achat de carte par code promo',
+                                    'sens' => 'credit',
+                                    'deleted' => 0,
+                                    'created_at' => Carbon::now(),
+                                    'updated_at' => Carbon::now(),            
+                                ]);
+                            }
+                        }
+                        
+                        $message = 'Felicitations! Votre achat de carte virtuelle Bcc est finalisé. Les informations suivantes sont celles de votre carte : Customer ID: '. $responseBody->registrationAccountId.', Quatre dernier Chiffre :'. $responseBody->registrationLast4Digits.', Registration pass code :'.$responseBody->registrationPassCode.'.';
+                        sendSms($userClient->username,$message);
+                        try{
+                            Mail::to([$userClient->kycClient->email,])->send(new MailVenteVirtuelle(['registrationAccountId' => $responseBody->registrationAccountId,'registrationLast4Digits' => $responseBody->registrationLast4Digits,'registrationPassCode' => $responseBody->registrationPassCode,'type' => $request->type])); 
+                        } catch (\Exception $e) {
+                            $message = ['success' => false, 'status' => 500, 'message' => 'Echec d\'envoi de mail.', 'timestamp' => Carbon::now(), 'user' => $userClient->id];  
+                            writeLog($message);
+                        }
+                        $message = ['success' => true, 'status' => 200,'message' => 'Achat effectué avec succes','timestamp' => Carbon::now(),'user' => $userClient->id]; 
+                        writeLog($message);
+                        return sendResponse($card, 'Achat terminé avec succes');
+                    } catch (BadResponseException $e) {
+                        $json = json_decode($e->getResponse()->getBody()->getContents());
+                        
+                        $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now(),'user' => $userClient->id]; 
+                        writeLog($message);
+                        return sendError($json, [], 500);
+                    }
+                }else{
+                    // Voir comment rembourser la transaction des clients
+
+                    $userCardBuy->reasons = $paymentVerification;
+                    $userCardBuy->status = 'failed';
+                    $userCardBuy->save();
+                    return sendError('Erreur lors de la verification du paiement de la carte', [], 500);
+                }
+            }
+            
+        } catch (\Exception $e) {
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage().'-'.$e->getLine(),'timestamp' => Carbon::now()]; 
+            writeLog($message);
+            return sendError($e->getMessage(), [], 500);
+        }
+    }
+
+
+
 
     public function checkCodePromo(Request $request){
         try {
             $promo_code = strtoupper(trim($request->promo_code));
             $exist_code_promo = UserPartenaire::where('promo_code',$promo_code)->where('deleted',0)->first();
-            
-            if ($exist_code_promo == null) {
+            $exist_code_promo_apporteur = Apporteur::where('code_promo',$request->promo_code)->where('deleted',0)->first();
+
+            if (!$exist_code_promo && !$exist_code_promo_apporteur) {
                 return sendError('Code promo inexistant',[], 404);
             }
 
@@ -72,11 +309,11 @@ class CardController extends Controller
 
             $montant = $request->montant;
             $partenaire = $app =  null;
+
             if($request->promo_code){
                 $userPartenaire = UserPartenaire::where('promo_code',$request->promo_code)->first();
-                $apporteur = Apporteur::where('promo_code',$request->promo_code)->first();
-                $montant = $montant - 300;
-
+                $apporteur = Apporteur::where('code_promo',$request->promo_code)->first();
+                $montant = $montant - 500;
 
                 if (!$userPartenaire && !$apporteur) {
                     return sendError('Code promo inexistant',[], 404);
@@ -85,8 +322,7 @@ class CardController extends Controller
                 }else if($apporteur){
                     $app = $apporteur->id;
                 }  
-            }
-          
+            }          
 
             $userCardBuy = UserCardBuy::create([
                 'id' => Uuid::uuid4()->toString(),
@@ -103,9 +339,9 @@ class CardController extends Controller
             ]);
 
             
-            $paymentVerification = $paiementService->paymentVerification($request->type, $request->transaction_id, $request->montant, $userClient->id);
+            //$paymentVerification = $paiementService->paymentVerification($request->type, $request->transaction_id, $request->montant, $userClient->id);
             
-            if($paymentVerification == true){
+            //if($paymentVerification == true){
                 $userCardBuy->is_debited = 1;
                 $userCardBuy->save();
 
@@ -124,7 +360,7 @@ class CardController extends Controller
                     "preferredName" => unaccent($name),
                     "address1" => $address,
                     "city" => $userClient->kycClient->city,
-                    "country" => 'BJ',//$user->kycClient->country,
+                    "country" => $userClient->kycClient->country,
                     "stateRegion" => $userClient->kycClient->departement,
                     "birthDate" =>  $userClient->kycClient->birthday,
                     "idType" => $userClient->kycClient->piece_type,
@@ -180,49 +416,51 @@ class CardController extends Controller
                         'created_at' => Carbon::now(),
                         'updated_at' => Carbon::now(),
                     ]);
-                    
 
                     $userCardBuy->user_card_id = $card->id;
                     $userCardBuy->status = 'completed';
                     $userCardBuy->save();
 
-                    if($userPartenaire){
-                        $compteCommissionPartenaire = AccountCommission::where('partenaire_id',$partenaire)->first();
-                        $soldeAvIncr = $compteCommissionPartenaire->solde;
-                        $compteCommissionPartenaire->solde += 200;
-                        $compteCommissionPartenaire->save();
-                        
-                        $soldeApIncr = $compteCommissionPartenaire->solde;
-            
-                        AccountCommissionOperation::insert([
-                            'id' => Uuid::uuid4()->toString(),
-                            'reference_gtp'=> '',
-                            'solde_avant' => $soldeAvIncr,
-                            'montant' => 200,
-                            'solde_apres' => $soldeApIncr,
-                            'libelle' => 'Commission pour achat de carte par code promo',
-                            'type' => 'credit',
-                            'account_commission_id' => $compteCommissionPartenaire->id,
-                            'deleted' => 0,
-                            'created_at' => Carbon::now(),
-                            'updated_at' => Carbon::now(),            
-                        ]);
-                    }else if($apporteur){
-                        $compteCommissionApporteur = Apporteur::where('id',$app)->first();
-                        $compteCommissionApporteur->solde += 200;
-                        $compteCommissionApporteur->save();
-                        
-            
-                        ApporteurOperation::insert([
-                            'id' => Uuid::uuid4()->toString(),
-                            'apporteur_id' => $app,
-                            'montant' => 200,
-                            'libelle' => 'Commission pour achat de carte par code promo',
-                            'sens' => 'credit',
-                            'deleted' => 0,
-                            'created_at' => Carbon::now(),
-                            'updated_at' => Carbon::now(),            
-                        ]);
+                    if($request->promo_code){
+                        if($userPartenaire){
+                            $compteCommissionPartenaire = AccountCommission::where('partenaire_id',$partenaire)->first();
+                            $soldeAvIncr = $compteCommissionPartenaire->solde;
+                            $compteCommissionPartenaire->solde += 400;
+                            $compteCommissionPartenaire->save();
+                            
+                            $soldeApIncr = $compteCommissionPartenaire->solde;
+                
+                            AccountCommissionOperation::insert([
+                                'id' => Uuid::uuid4()->toString(),
+                                'reference_gtp'=> '',
+                                'solde_avant' => $soldeAvIncr,
+                                'montant' => 400,
+                                'solde_apres' => $soldeApIncr,
+                                'libelle' => 'Commission pour achat de carte par code promo',
+                                'type' => 'credit',
+                                'account_commission_id' => $compteCommissionPartenaire->id,
+                                'deleted' => 0,
+                                'created_at' => Carbon::now(),
+                                'updated_at' => Carbon::now(),            
+                            ]);
+                        }else if($apporteur){
+                            $compteCommissionApporteur = Apporteur::where('id',$app)->first();
+                            $compteCommissionApporteur->solde_commission += 400;
+                            $compteCommissionApporteur->save();
+                            
+                
+                            ApporteurOperation::insert([
+                                'id' => Uuid::uuid4()->toString(),
+                                'apporteur_id' => $app,
+                                'montant' => 400,
+                                'libelle' => 'Commission pour achat de carte par code promo',
+                                'sens' => 'credit',
+                                'deleted' => 0,
+                                'created_at' => Carbon::now(),
+                                'updated_at' => Carbon::now(),            
+                            ]);
+                        }
+
                     }
                     
                     $message = 'Felicitations! Votre achat de carte virtuelle Bcc est finalisé. Les informations suivantes sont celles de votre carte : Customer ID: '. $responseBody->registrationAccountId.', Quatre dernier Chiffre :'. $responseBody->registrationLast4Digits.', Registration pass code :'.$responseBody->registrationPassCode.'.';
@@ -238,21 +476,20 @@ class CardController extends Controller
                     return sendResponse($card, 'Achat terminé avec succes');
                 } catch (BadResponseException $e) {
                     $json = json_decode($e->getResponse()->getBody()->getContents());
-                    $error = $json->title.'.'.$json->detail;
                     
-                    $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
+                    $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now(),'user' => $userClient->id]; 
                     writeLog($message);
-                    return sendError($error, [], 500);
+                    return sendError($json, [], 500);
                 }
-            }else{
+            /*}else{
                 $userCardBuy->reasons = $paymentVerification;
                 $userCardBuy->status = 'failed';
                 $userCardBuy->save();
                 return sendError('Erreur lors de la verification du paiement de la carte', [], 500);
-            }
+            }*/
             
         } catch (\Exception $e) {
-            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage().'-'.$e->getLine(),'timestamp' => Carbon::now()]; 
             writeLog($message);
             return sendError($e->getMessage(), [], 500);
         }
@@ -308,12 +545,11 @@ class CardController extends Controller
                     "preferredName" => unaccent($name),
                     "address1" => $address,
                     "city" => $user->kycClient->city,
-                    "country" => 'BJ',//$user->kycClient->country,,
+                    "country" => $user->kycClient->country,
                     "stateRegion" => $user->kycClient->departement,
                     "birthDate" =>  $user->kycClient->birthday,
                     "idType" => $user->kycClient->piece_type,
                     "idValue" => $user->kycClient->piece_id,
-                    'pass_code' => encryptData((string)$responseBody->registrationPassCode,$encrypt_Key),
                     "mobilePhoneNumber" => [
                         "countryCode" => explode(' ',$user->kycClient->telephone)[0],
                         "number" =>  explode(' ',$user->kycClient->telephone)[1],
@@ -375,7 +611,7 @@ class CardController extends Controller
                         // Ajout compte de commission 
                         $compteCommissionPartenaire = AccountCommission::where('partenaire_id',$userCardBuy->partenaire_id)->first();
                         $soldeAvIncr = $compteCommissionPartenaire->solde;
-                        $compteCommissionPartenaire->solde += 200;
+                        $compteCommissionPartenaire->solde += 400;
                         $compteCommissionPartenaire->save();
                         
                         $soldeApIncr = $compteCommissionPartenaire->solde;
@@ -384,7 +620,7 @@ class CardController extends Controller
                             'id' => Uuid::uuid4()->toString(),
                             'reference_gtp'=> '',
                             'solde_avant' => $soldeAvIncr,
-                            'montant' => 200,
+                            'montant' => 400,
                             'solde_apres' => $soldeApIncr,
                             'libelle' => 'Commission pour achat de carte par code promo',
                             'type' => 'credit',
@@ -395,14 +631,14 @@ class CardController extends Controller
                         ]);
                     }else if ($userCardBuy->apporteur){
                         $compteCommissionApporteur = Apporteur::where('id',$userCardBuy->apporteur->id)->first();
-                        $compteCommissionApporteur->solde += 200;
+                        $compteCommissionApporteur->solde_commission += 400;
                         $compteCommissionApporteur->save();
                         
             
                         ApporteurOperation::insert([
                             'id' => Uuid::uuid4()->toString(),
                             'apporteur_id' => $userCardBuy->apporteur->id,
-                            'montant' => 200,
+                            'montant' => 400,
                             'libelle' => 'Commission pour achat de carte par code promo',
                             'sens' => 'credit',
                             'deleted' => 0,
@@ -438,7 +674,7 @@ class CardController extends Controller
             return sendError($e->getMessage(), [], 500);
         }
     }
-
+    
     public function setDefaultCard(Request $request){
         try{            
             $validator = Validator::make($request->all(), [
@@ -490,7 +726,6 @@ class CardController extends Controller
             $authLogin = env('AUTH_LOGIN');
             $authPass = env('AUTH_PASS');
 
-            
             try {
                 $client = new Client();
                 $url = $base_url."accounts/".$request->customer_id;
@@ -512,7 +747,7 @@ class CardController extends Controller
                 $clientInfo = json_decode($response->getBody());
 
                 if($clientInfo->cardStatus == 'LC'){
-                    return sendError('Cette carte est pour le moment bloqué. Veuillez contacter le service clientèle', [], 403);
+                    return sendError('Cette carte est pour le moment bloqué. Veuillez contacter le service clientèle', [], 404);
                 }
             } catch (BadResponseException $e) {
                 $json = json_decode($e->getResponse()->getBody()->getContents());
@@ -521,7 +756,6 @@ class CardController extends Controller
                 writeLog($message);
                 return sendError($error, [], 500);
             }
-
             
             try {
                 $client = new Client();
@@ -550,13 +784,17 @@ class CardController extends Controller
                 $accountInfoLists = json_decode($response->getBody())->accountInfoList;
 
                 //return $response->getBody();
-
+                $i = 0;
                 foreach ($accountInfoLists as $value) {
                     if($value->accountId == $request->customer_id && $value->lastFourDigits == $request->last_digits){
+                        $i = 100;
                         break;
                     }else{
-                        return sendError('Les 4 derniers chiffres ne correspondent pas a l\'ID', [], 403);
+                        $i++;
                     }
+                }
+                if($i != 100){                    
+                    return sendError('Les 4 derniers chiffres ne correspondent pas a l\'ID', [], 403);
                 }
             } catch (BadResponseException $e) {
                 $json = json_decode($e->getResponse()->getBody()->getContents());   
@@ -569,6 +807,12 @@ class CardController extends Controller
             
             $user = UserClient::where('id',$request->user_id)->first();
             $firstly = 0;
+
+            if($user->username !== $request->mobile_phone_number){
+                $message = ['success' => false, 'status' => 500,'message' => 'ok','timestamp' => Carbon::now()]; 
+                writeLog($message);
+                return sendError($user->username.' '.$request->mobile_phone_number, [], 500);
+            }
 
             $card = UserCard::create([
                 'id' => Uuid::uuid4()->toString(),
@@ -720,6 +964,8 @@ class CardController extends Controller
                 writeLog($message);
                 return sendError($error, [], 500);
             }
+
+            
             if($request->status == "Active"){
                 $message = "Déverouillage effectué avec succes";
             }else{

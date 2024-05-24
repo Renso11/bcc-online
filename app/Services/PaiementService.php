@@ -73,6 +73,7 @@ class PaiementService
             $authPass = env('AUTH_PASS');
             $accountId = env('AUTH_DISTRIBUTION_ACCOUNT');
 
+
             $client = new Client();
             $encrypt_Key = env('ENCRYPT_KEY');
             $url =  $base_url . "accounts/" . decryptData((string)$customer_id, $encrypt_Key) . "/transactions";
@@ -301,14 +302,14 @@ class PaiementService
                     $status = "FAILED";
                     $message = ['success' => false, 'status' => 500, 'message' => 'Echec lors du paiement du transfert', 'timestamp' => Carbon::now()];
                     writeLog($message);
-                    return false;
+                    return $status;
                 } else {
                     $now = time() - $starttime;
                     if ($now > 125) {
-                        $status = "FAILED";
+                        $status = "FAILED_TIME";
                         $message = ['success' => false, 'status' => 500, 'message' => 'Echec de confirmation du transfert', 'timestamp' => Carbon::now()];
                         writeLog($message);
-                        return false;
+                        return $status;
                     }
                     $status = $externalTransaction->status;
                 }

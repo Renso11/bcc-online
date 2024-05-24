@@ -17,7 +17,7 @@
                 <br>
                 <div class="box">
                     <div class="box-header">
-                        <h3 class="box-title">Liste des apporteurs </h3>
+                        <h3 class="box-title">Liste des apporteur </h3>
                     </div>
 
                     <div class="box-body">
@@ -49,6 +49,9 @@
                                                     <span class="sr-only">Toggle Dropdown</span>
                                                 </button>
                                                 <ul class="dropdown-menu" role="menu">
+                                                    <li>
+                                                        <a class="dropdown-item" href="/apporteur/operations/{{$item->id}}"><i class="fa fa-money-o"></i>&nbsp;&nbsp;Operations</a>
+                                                    </li>
                                                     <li>
                                                         <a class="dropdown-item" href="javascript:void(0)" data-toggle="modal" data-target="#reg-code-promo-{{ $item->id }}"><i class="fa fa-spinner"></i>&nbsp;&nbsp;Regenerer le code promo</a>
                                                     </li>

@@ -75,6 +75,7 @@
                             <th style="width:10%"><span class="bold">Date</b></th>
                             <th style="width:5%"><span class="bold">Type</b></th>
                             <th style="width:15%"><span class="bold">Client</b></th>
+                            <th style="width:15%"><span class="bold">Carte</b></th>
                             <th style="width:15%"><span class="bold">Partenaire</b></th>
                             <th style="width:5%"><span class="bold">Methode</b></th>
                             <th style="width:5%"><span class="bold">Status</b></th>
@@ -89,7 +90,8 @@
                     <tr>
                         <td>{{ $item['date'] }}</td>
                         <td>{{ $item['type'] }}</td>
-                        <td>{{ array_key_exists('userClient',$item) ? $item['userClient']->name.' '.$item['userClient']->lastname : '' }}</td>
+                        <td>{{ array_key_exists('userClient',$item) && $item['userClient'] ? $item['userClient']->name.' '.$item['userClient']->lastname: '' }}</td>
+                        <td>{{ array_key_exists('userCard',$item) && $item['userCard'] ? decryptData((string)$item['userCard']->customer_id,env('ENCRYPT_KEY')).', ***'.decryptData((string)$item['userCard']->last_digits,env('ENCRYPT_KEY')) : '' }}</td>
                         <td>{{ array_key_exists('partenaire',$item) ? $item['partenaire']['libelle'] : '' }}</td>
                         <td>{{ array_key_exists('moyen_paiement',$item) ? $item['moyen_paiement'] : '-' }}</td>
                         <td>{{ $item['status'] }}</td>

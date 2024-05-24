@@ -16,3 +16,8 @@ Route::get('/download/achat/cartes', [RapportController::class, 'downloadAchatCa
 Route::get('/rapport/transactions/partenaires', [RapportController::class, 'rapportTransactionPartenaire'])->middleware(['auth']);
 Route::post('/search/transactions/partenaire', [RapportController::class, 'searchTransactionPartenaire'])->middleware(['auth']);
 Route::get('/download/transactions/partenaire', [RapportController::class, 'downloadTransactionPartenaire'])->middleware(['auth']);
+
+
+Route::get('/rapport/transactions/apporteurs', [RapportController::class, 'rapportTransactionApporteur'])->middleware(['auth']);
+Route::post('/search/transactions/apporteur', [RapportController::class, 'searchTransactionApporteur'])->middleware(['auth']);
+Route::get('/download/transactions/apporteur', [RapportController::class, 'downloadTransactionApporteur'])->middleware(['auth']);

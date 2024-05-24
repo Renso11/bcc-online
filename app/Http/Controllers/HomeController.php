@@ -305,7 +305,52 @@ class HomeController extends Controller
         return json_encode($data);
     }
 
+    
     public function test(PaiementService $paiementService){
+        dd('ok');
+        $base_url = 'https://gtpportal.com/rest/api/v1/';
+        $programID = 66;
+        $authLogin = '5404b9d0-15a5-448f-9664-40fab9082621';
+        $authPass = 'z^MN0X2]kMm6!6993^}{';
+        $accountId = 17225124;
+
+        $client = new Client();
+        $url =  $base_url."accounts/19865273/transactions";
+        
+        $body = [
+            "transferType" => "WalletToCard",
+            "transferAmount" => 780,
+            "currencyCode" => "XOF",
+            "referenceMemo" => 'Transfert bcc',
+            "last4Digits" => '0679'
+        ];
+
+        $body = json_encode($body);
+        
+        $headers = [
+            'programId' => $programID,
+            'requestId' => Uuid::uuid4()->toString(),
+            'accountId' => $accountId,
+            'Content-Type' => 'application/json', 'Accept' => 'application/json'
+        ];
+    
+        $auth = [
+            $authLogin,
+            $authPass
+        ];
+
+        $response = $client->request('POST', $url, [
+            'auth' => $auth,
+            'headers' => $headers,
+            'body' => $body,
+            'verify'  => false,
+        ]);
+
+        dd(json_decode($response->getBody()));
+    }
+
+    /*public function test(PaiementService $paiementService){
+        //dd('ok');
         try {
             $base_url = 'https://gtpportal.com/rest/api/v1/';
             $programID = 66;
@@ -314,7 +359,7 @@ class HomeController extends Controller
             $accountId = 17225124;
     
             $client = new Client();
-            $url =  $base_url."accounts/18139807/transactions";
+            $url =  $base_url."accounts/14417554/transactions";
             
             $headers = [
                 'programId' => $programID,
@@ -331,12 +376,52 @@ class HomeController extends Controller
             $response = Http::withHeaders($headers)
             ->withBasicAuth($authLogin, $authPass)
             ->get($url, [
-                'StartDate' => '01-JAN-2024',
-                'EndDate' => '30-APR-2024'
+                'StartDate' => '01-MAY-2024',
+                'EndDate' => '17-MAY-2024'
             ]);
             dd(json_decode($response->getBody()));
         } catch (\Exception $e) {
             dd($e);
+        }
+
+        
+        try {
+            $base_url = 'https://gtpportal.com/rest/api/v1/';
+            $programID = 66;
+            $authLogin = '5404b9d0-15a5-448f-9664-40fab9082621';
+            $authPass = 'z^MN0X2]kMm6!6993^}{';
+            $accountId = 17225124;            
+
+            $client = new Client();
+            $url = $base_url."accounts/phone-number";
+
+            $headers = [
+                'programId' => $programID,
+                'requestId' => Uuid::uuid4()->toString(),
+            ];
+    
+            $query = [
+                'phoneNumber' => "22962146615"
+            ];
+    
+            $auth = [
+                $authLogin,
+                $authPass
+            ];
+            $response = $client->request('GET', $url, [
+                'auth' => $auth,
+                'headers' => $headers,
+                'query' => $query
+            ]);
+            
+            $accountInfo = null;
+            $accountInfoLists = json_decode($response->getBody())->accountInfoList;
+            dd($accountInfoLists);
+            return $accountInfo;
+        } catch (BadResponseException $e) {
+            $json = json_decode($e->getResponse()->getBody()->getContents());   
+            $error = $json->title.'.'.$json->detail;
+            return sendError($error, [], 500);
         }
 
     }
@@ -447,6 +532,7 @@ class HomeController extends Controller
             dd($e);
         }
     }
+    
     /*
     public function test(){
         try {

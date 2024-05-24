@@ -47,7 +47,7 @@
                             <th style="width:5%"><span class="bold">Status</b></th>
                             <th style="width:10%"><span class="bold">Reference Paiement</b></th>
                             <th style="width:10%"><span class="bold">Promo</b></th>
-                            <th style="width:10%"><span class="bold">Partenaire</b></th>
+                            <th style="width:10%"><span class="bold">Partenaire / Apporteur </b></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -62,15 +62,19 @@
                             <td>{{ $item->status }}</td>
                             <td>{{ $item->reference_paiement }}</td>
                             <td> 
-                                @if($item->partenaire)
+                                @if($item->partenaire || $item->apporteur)
                                     <span class="label label-success">Promo</span>
                                 @else 
                                     <span class="label label-danger">Non-Promo</span>
                                 @endif
                             </td>
                             <td> 
-                                @if($item->partenaire)
-                                    {{ $item->partenaire->libelle }}
+                                @if($item->partenaire || $item->apporteur)
+                                    @if($item->partenaire)
+                                        {{ $item->partenaire->libelle }}
+                                    @elseif($item->apporteur)
+                                        {{ $item->apporteur->lastname.' '.$item->apporteur->name }}
+                                    @endif
                                 @else 
                                     -
                                 @endif

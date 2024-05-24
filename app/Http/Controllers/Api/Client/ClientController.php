@@ -32,12 +32,13 @@ use App\Services\PaiementService;
 use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Ramsey\Uuid\Uuid;
+use Illuminate\Support\Facades\Log;
 
 class ClientController extends Controller
 {
     
     public function __construct() {
-        $this->middleware('is-auth', ['except' => ['initiationBmo','confirmationBmo','resetPasswordWithQuestions','getQuestionsAll','getQuestionsByPhone','addContact','getLatestVersion','checkCodeOtp','createCompteClient', 'loginCompteClient', 'sendCode', 'checkCodeOtp', 'resetPassword','saveSignature','verificationPhone', 'verificationInfoPerso','verificationInfoPiece','saveFile','sendCodeTelephoneRegistration','getServices','sendCodeTelephone']]);
+        $this->middleware('is-auth', ['except' => ['initiationBmo','confirmationBmo','resetPasswordWithQuestions','getQuestionsAll','getQuestionsByPhone','addContact','getLatestVersion','checkCodeOtp','createCompteClient', 'loginCompteClient', 'sendCode', 'checkCodeOtp', 'resetPassword','saveSignature','verificationPhone', 'verificationInfoPerso','verificationInfoPiece','saveFile','sendCodeTelephoneRegistration','getServices','sendCodeTelephone','callBackKkiapay']]);
     }
 
     public function tokenValide(Request $request){
@@ -1244,7 +1245,19 @@ class ClientController extends Controller
             return sendError($e->getMessage(), [], 500);
         };
     }
+    
+    public function callBackKkiapay(Request $request)
+    {
+        $payload = $request->all();
 
+        return response()->json(['status' => 'success', 'message' => 'Webhook received successfully']);
+    }
+
+
+
+
+    
+//gghcghcgh
     public function getClientPendingTransaction(Request $request){
         try{
             $transactions = Recharge::select('id', DB::raw("'Rechargement de la carte' as libelle"), 'created_at', 'user_client_id', DB::raw("'card_load' as type_operation"), 'montant', DB::raw('0 as frais'))

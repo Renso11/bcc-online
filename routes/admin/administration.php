@@ -9,6 +9,7 @@ use App\Http\Controllers\TpeController;
 use App\Http\Controllers\ParametreController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ApporteurController;
+use App\Http\Controllers\CallbackController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -102,6 +103,7 @@ Route::post('/apporteur/activate/{id}', [ApporteurController::class, 'activate']
 Route::post('/apporteur/desactivate/{id}', [ApporteurController::class, 'desactivate'])->middleware(['auth']);
 Route::post('/apporteur/reset/password/{id}', [ApporteurController::class, 'resetPassword'])->middleware(['auth']);
 Route::post('/apporteur/reset/code/{id}', [ApporteurController::class, 'resetCode'])->middleware(['auth']);
+Route::get('/apporteur/operations/{id}', [ApporteurController::class, 'operations'])->name('getOperationsApporteur');
 
 
 Auth::routes();
@@ -112,3 +114,5 @@ Route::get('/test', [HomeController::class, 'test'])->name('test');
 Route::get('/pay/{payment_id}', [AppController::class, 'initTransactionKkiapay'])->name('admin.init.transaction.kkiapay');
 Route::post('/validation/transaction/kkiapay/{payment_id}', [AppController::class, 'validationTransactionKkiapay'])->name('admin.validation.transaction.kkiapay');
 Route::post('/rejet/transaction/kkiapay/{payment_id}', [AppController::class, 'rejetTransactionKkiapay'])->name('admin.rejet.transaction.kkiapay');
+
+Route::post('/callback/kkiapay', [CallbackController::class, 'callBackKkiapay'])->name('callBack.Kkiapay');

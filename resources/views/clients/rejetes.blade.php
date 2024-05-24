@@ -20,20 +20,58 @@
                             <table class="table table-bordered table-striped example1">
                                 <thead>
                                     <tr>
+                                        <th>Date du rejet</th>
                                         <th>Nom et prénoms</th>
                                         <th>Telephone</th>
                                         <th>Status</th>
                                         <th>Motif du rejet</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach ($userClients as $item)
                                         <tr>
+                                            <td>{{ $item->updated_at->format('d-m-Y H:i:s') }}</td>
                                             <td>{{ $item->lastname.' '.$item->name }}</td>
                                             <td>{{ $item->username }}</td>
                                             <td><span class="label label-danger">Rejeté</span></td>
                                             <td>{{$item->motif_rejet}}</td>
+                                            <td>
+                                                <div class="btn-group">
+                                                    <button type="button" class="btn btn-default btn-flat">Actions</button>
+                                                    <button type="button" class="btn btn-default btn-flat dropdown-toggle"
+                                                        data-toggle="dropdown">
+                                                        <span class="caret"></span>
+                                                        <span class="sr-only">Toggle Dropdown</span>
+                                                    </button>
+                                                    <ul class="dropdown-menu" role="menu">
+                                                        <li>
+                                                            <a class="dropdown-item" href="javascript:void(0)" data-toggle="modal" data-target="#reset-password-client-{{ $item->id }}"><i class="fa fa-spinner"></i>&nbsp;&nbsp;Reinitialisater le mot de passe</a>
+                                                        </li>
+                                                    </ul>  
+                                                </div>
+                                            </td>
                                         </tr>
+
+                                        <div class="modal fade" id="reset-password-client-{{ $item->id }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel1">
+                                            <div class="modal-dialog modal-sm" role="document">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h4 class="modal-title" id="exampleModalLabel1">Reinitialisation du mot de passe de {{ $item->lastname.' '.$item->name }}</h4>
+                                                    </div>
+                                                    <form action="/client/reset/password/{{ $item->id }}" method="POST"> 
+                                                        @csrf
+                                                        <div class="modal-body">
+                                                            <p>Etes vous sur de réinitialiser le mot de passe de client?</p>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-danger" data-dismiss="modal">Non</button>
+                                                            <button type="submit" class="btn btn-primary">Oui</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                     @endforeach
                                 </tbody>
                             </table>
