@@ -315,14 +315,14 @@ class HomeController extends Controller
         $accountId = 17225124;
 
         $client = new Client();
-        $url =  $base_url."accounts/19865273/transactions";
+        $url =  $base_url."accounts/20119785/transactions";
         
         $body = [
             "transferType" => "WalletToCard",
             "transferAmount" => 780,
             "currencyCode" => "XOF",
             "referenceMemo" => 'Transfert bcc',
-            "last4Digits" => '0679'
+            "last4Digits" => '4714'
         ];
 
         $body = json_encode($body);

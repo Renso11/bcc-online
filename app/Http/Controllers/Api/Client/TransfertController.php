@@ -14,15 +14,17 @@ use App\Models\ClientTransaction;
 use App\Models\UserCard;
 use App\Services\PaiementService;
 use Ramsey\Uuid\Uuid;
+use Illuminate\Support\Facades\Log;
+
 
 class TransfertController extends Controller
 {
     public function __construct() {
-        $this->middleware('is-auth', ['except' => ['addContact','createCompteClient', 'loginCompteClient', 'sendCode', 'checkCodeOtp', 'resetPassword','verificationPhone', 'verificationInfoPerso','verificationInfoPiece','saveFile','sendCodeTelephoneRegistration','getServices','sendCodeTelephone']]);
+        $this->middleware('is-auth', ['except' => ['addContact','createCompteClient', 'loginCompteClient', 'sendCode', 'checkCodeOtp', 'resetPassword','verificationPhone', 'verificationInfoPerso','verificationInfoPiece','saveFile','sendCodeTelephoneRegistration','getServices','sendCodeTelephone','callBackTransfer']]);
     }
     
 
-    public function initTransfert(Request $request){
+    public function addNewTransfertClient(Request $request, PaiementService $paiementService){
         try {
             $encrypt_Key = env('ENCRYPT_KEY');
 
@@ -113,6 +115,7 @@ class TransfertController extends Controller
                         $transfert->montant_recu = $montant - $frais;
                         $transfert->save();
 
+                        $paiementService->repartitionCommission($fraisAndRepartition,$frais,$montant,$referenceGtp, 'transfert');
                         $message = getSms('transfert', null, $montant, 0, $soldeApres, ' vers la carte '.$request->customer_id, null);  
                         if($sender->sms == 1){
                             sendSms($sender->username,$message);
@@ -127,7 +130,6 @@ class TransfertController extends Controller
                             }
                         }
 
-                        $paiementService->repartitionCommission($fraisAndRepartition,$frais,$montant,$referenceGtp, 'transfert');
                         return sendResponse($transfert, 'Transfert effectué avec succes. Consulter votre solde');
                     }
                 }else if($request->type == 'bcv'){
@@ -213,7 +215,6 @@ class TransfertController extends Controller
                 }else{
                     $momoCredited = $paiementService->momoCredited($request->receveur_telephone, $montant, $transfert->userClient->id);
 
-                    
                     $transfert->name = $request->name;
                     $transfert->lastname = $request->lastname;    
                     $transfert->libelle = 'Transfert Momo de '.$request->montant.' vers le numero '.$request->receveur_telephone.'.';   
@@ -224,20 +225,8 @@ class TransfertController extends Controller
                     $transfert->montant_recu = $montant - $frais;
                     $transfert->save();
                     
-                    ClientTransaction::create([
-                        'id' => Uuid::uuid4()->toString(),
-                        'reference' => $momoCredited->transactionId,
-                        'type' => "transfer",
-                        'type_id' => $transfert->id,
-                        'deleted' => 0,
-                        'created_at' => Carbon::now(),
-                        'updated_at' => Carbon::now(),
-                    ]);
-                    
-                    return sendResponse($card, 'Paiement effectué.. Votre transfert est en cours de verification');
+                    return sendResponse($transfert, 'Paiement effectué.. Votre transfert est en cours...');
                 }
-
-                return sendResponse($transfert, 'Transfert effectué avec succes');
             }
         }catch (\Exception $e) {
             $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
@@ -246,9 +235,7 @@ class TransfertController extends Controller
         };
     }
     
-    
-    
-    public function addNewTransfertClient(Request $request, PaiementService $paiementService){
+    public function addNewTransfertClientOld(Request $request, PaiementService $paiementService){
         try {
             $encrypt_Key = env('ENCRYPT_KEY');
 
@@ -666,5 +653,100 @@ class TransfertController extends Controller
             writeLog($message);
             return sendError($e->getMessage(), [], 500);
         };
+    }
+    
+    public function callBackTransfer(Request $request, PaiementService $paiementService)
+    {
+        $payload = $request->getContent();
+
+        Log::info('Le callback a été appelé');
+        Log::info($payload);
+        
+        $data = json_decode($payload, true);
+
+        // Recherche la transaction avec la reference_operateur correspondant a la transaction_id de kkp et qui n'est pas en cours
+        $transfert = TransfertOut::where('reference_operateur',$data['transactionId'])->first();
+
+        Log::info('Le callback a été appelé 1');
+        Log::info($data['transactionId']);
+
+        // si on trouve la transaction.......
+        if($transfert && $transfert->status !== 'pending'){
+            Log::info('Le callback a été appelé 2');
+            return sendError('Cette reference de paiement a déjà été utilisé', [], 500);
+        }
+
+        if($data['isPaymentSucces'] == true){    
+            Log::info('Le callback a été appelé 3');
+            Log::info('succes'.'---'.$data['isPaymentSucces']);       
+
+            $transfert->status = 'completed';
+            $transfert->is_credited = 1;
+            $transfert->save();
+
+            $message = getSms('transfert', null, $transfert->montant, 0, $transfert->soldeApres, ' vers le compte Momo +'.$transfert->receveur_telephone, null);
+                 
+            if($transfert->userClient->sms == 1){
+                sendSms($transfert->userClient->username,$message);
+            }else{
+                try{
+                    $email = $transfert->userClient->kycClient->email;
+                    $arr = ['messages'=> $message,'objet'=> 'Alerte transfert','from'=>'bmo-uba-noreply@bestcash.me'];
+                    Mail::to([$email,])->send(new MailAlerte($arr));
+                } catch (\Exception $e) {
+                    $message = ['success' => false, 'status' => 500, 'message' => 'Echec d\'envoi de mail.', 'timestamp' => Carbon::now(), 'user' => $transfert->userClient->id];  
+                    writeLog($message);
+                    return sendError($e->getMessage(), [], 500);
+                }
+            }
+
+            $message = ['success' => true, 'status' => 200,'message' => 'Transfert effectué avec succes','timestamp' => Carbon::now(),'user' => $transfert->userClient->id]; 
+            writeLog($message);
+            return sendResponse($transfert, 'Transfert effectué avec succes.');
+        }else{
+            Log::info('Le callback a été appelé 4');
+            // retourner les sous sur la carte
+            
+            Log::info('echec'.'---'.$data['isPaymentSucces']);       
+            $reference_memo_gtp = unaccent("Retour de fond suite a un echec de transfert. Montant : " . $transfert->montant_recu . " XOF.");
+            $cardCredited = $paiementService->cardCredited($transfert->userCard->customer_id, $transfert->userCard->last_digits, $transfert->montant_recu, $transfert->userClient, $reference_memo_gtp); 
+
+            $message = getSms('transfert_echec', null, $transfert->montant, $transfert->frais, $transfert->soldeApres, ' vers le compte Momo +'.$transfert->receveur_telephone, null);
+                 
+            if($cardCredited == false){
+                Log::info('Le callback a été appelé 5');
+                $message = ['success' => true, 'status' => 500,'message' => 'Echec de remboursement apres transfert echoue','timestamp' => Carbon::now(),'user' => $transfert->userClient->id]; 
+                writeLog($message);
+
+                return sendError('Echec de remboursement apres transfert echoue', [], 500);                    
+            }else{
+                Log::info('Le callback a été appelé 6');
+                $transfert->status = 'failed';
+                $transfert->is_credited = 0;
+                $referenceGtp = $cardCredited->transactionId;              
+                
+                $transfert->refunded_reference = $referenceGtp;
+                $transfert->save();
+                
+                if($transfert->userClient->sms == 1){
+                    sendSms($transfert->userClient->username,$message);
+                }else{
+                    try{
+                        $email = $transfert->userClient->kycClient->email;
+                        $arr = ['messages'=> $message,'objet'=>'Alerte transfert','from'=>'bmo-uba-noreply@bestcash.me'];
+                        Mail::to([$email,])->send(new MailAlerte($arr));
+                    } catch (\Exception $e) {
+                        $message = ['success' => false, 'status' => 500, 'message' => 'Echec d\'envoi de mail.', 'timestamp' => Carbon::now(), 'user' => $transfert->userClient->id];  
+                        writeLog($message);
+                        return sendError($e->getMessage(), [], 500);
+                    }
+                }
+                $message = ['success' => true, 'status' => 200,'message' => 'Transfert effectué avec succes','timestamp' => Carbon::now(),'user' => $transfert->userClient->id]; 
+                writeLog($message);
+    
+                return sendResponse($transfert, 'Transfert effectué avec succes.');
+            }
+
+        }
     }
 }

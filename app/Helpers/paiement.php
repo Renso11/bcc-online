@@ -52,6 +52,7 @@ function checkPayment($method, $reference, $amount)
       return 'not_success';
     }
   } else if ($method == 'bcc') {
+    // bcc payment voir si les paiement bcc sont enregistré
     $paiement = BccPayment::where('id', $reference)->first();
     if ($paiement->status == 1) {
       if ($paiement->montant == $amount) {

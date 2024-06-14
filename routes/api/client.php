@@ -14,6 +14,7 @@ Route::post('complete/buy/card/client', [CardController::class, 'completeBuyCard
 Route::post('set/default/card', [CardController::class, 'setDefaultCard'])->name('setDefaultCard');
 Route::post('liaison/carte', [CardController::class, 'liaisonCarte'])->name('liaisonCarte');
 Route::get('get/user/cards/{id}', [CardController::class, 'getUserCards'])->name('getUserCards');
+Route::get('get/user/card/{id}', [CardController::class, 'getUserCard'])->name('getUserCard');
 Route::get('cards/infos', [CardController::class, 'getCardsInfos'])->name('getCardsInfos');
 Route::get('card-info/{id}', [CardController::class, 'getCardInfo'])->name('getCardInfo');
 Route::get('card-info/account-info/{id}', [ClientController::class, 'getAccountInfo'])->name('getAccountInfo');
@@ -106,7 +107,15 @@ Route::post('reset/password/with/questions', [ClientController::class, 'resetPas
 
 Route::post('save/front/payment', [ClientController::class, 'saveFrontPayment'])->name('saveFrontPayment');
 
-Route::post('/callback/kkiapay', [ClientController::class, 'callBackKkiapay'])->name('callBackKkiapay');
+Route::post('/confirm/kkp/transaction/{id}', [ClientController::class, 'confirmKkpTransaction'])->name('confirmKkpTransaction');
+
+Route::get('/callbacks/card/purchase/{id}', [CardController::class, 'callBackCardPurchase'])->name('callBackCardPurchase');
+
+Route::get('/callbacks/card/load/{id}', [DepotController::class, 'callBackCardLoad'])->name('callBackCardLoad');
+Route::post('/callbacks/card/load/{id}', [DepotController::class, 'callBackCardLoad'])->name('callBackCardLoad');
+
+
+Route::post('/callbacks/transfer', [TransfertController::class, 'callBackTransfer'])->name('callBackTransfer');
 
 
 

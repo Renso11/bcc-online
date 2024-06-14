@@ -115,4 +115,4 @@ Route::get('/pay/{payment_id}', [AppController::class, 'initTransactionKkiapay']
 Route::post('/validation/transaction/kkiapay/{payment_id}', [AppController::class, 'validationTransactionKkiapay'])->name('admin.validation.transaction.kkiapay');
 Route::post('/rejet/transaction/kkiapay/{payment_id}', [AppController::class, 'rejetTransactionKkiapay'])->name('admin.rejet.transaction.kkiapay');
 
-Route::post('/callback/kkiapay', [CallbackController::class, 'callBackKkiapay'])->name('callBack.Kkiapay');
+//Route::post('/callback/kkiapay', [CallbackController::class, 'callBackKkiapay'])->name('callBack.Kkiapay');

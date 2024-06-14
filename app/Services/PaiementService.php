@@ -288,7 +288,7 @@ class PaiementService
             $resultat = json_decode($response->getBody());
             //return resultat_check_status_kkp($resultat->transactionId);
             // check momo status
-            $status = "PENDING";
+            /*$status = "PENDING";
             $starttime = time();
 
             while ($status == "PENDING") {
@@ -313,7 +313,7 @@ class PaiementService
                     }
                     $status = $externalTransaction->status;
                 }
-            }
+            }*/
             return $resultat;
         } catch (BadResponseException $e) {
             $message = ['success' => false, 'status' => 500, 'message' => $e->getMessage(), 'timestamp' => Carbon::now()];

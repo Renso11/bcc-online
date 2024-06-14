@@ -216,8 +216,8 @@
                                             @foreach ($activations as $item)
                                                 <tr>
                                                     <td>{{ $item->created_at->format('d/m/Y H:i:s') }}</td>
-                                                    <td>{{ $item->userCard->userClient->lastname.' '.$item->userCard->userClient->name }}</td>
-                                                    <td>{{ $item->userCard->userClient->username }}</td>
+                                                    <td>{{ $item->userCard ? $item->userCard->userClient->lastname.' '.$item->userCard->userClient->name : '-' }}</td>
+                                                    <td>{{ $item->userCard ? $item->userCard->userClient->username : '-'}}</td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
