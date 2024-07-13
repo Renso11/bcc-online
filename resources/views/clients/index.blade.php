@@ -233,8 +233,14 @@
                                                 </div>
                                             </div>
                                         @endforeach
+
                                     </tbody>
                                 </table>
+                            </div>
+                            
+
+                            <div class="mt-3"><nav aria-label="Page navigation example">
+                                {!! $userClients->links('pagination.custom') !!} 
                             </div>
                         </div>
                     </div>
@@ -267,7 +273,7 @@
 
         $('#code').on('keyup',function (e) {
             var code = $(this).val();
-            $('#name').val("")
+            $('#name').val("")complete/kyc/admin
             $('#lastname').val("")
             $('#last').val("")
             if(code.length >= 8){

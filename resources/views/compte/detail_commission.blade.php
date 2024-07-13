@@ -94,6 +94,7 @@
 
     <script src="/bower_components/datatables.net/js/jquery.dataTables.min.js"></script>
     <script src="/bower_components/datatables.net-bs/js/dataTables.bootstrap.min.js"></script>
+    <script src="/excel/src/jquery.table2excel.js"></script> 
     <script>
         $(".example1").DataTable({
             ordering: false
@@ -152,6 +153,8 @@
                                 exclude_inputs: true,
                                 preserveColors: true
                             });
+                            
+                            console.log('o,')
                             
                             $('#noExel').hide();
                             $(".example1").DataTable({

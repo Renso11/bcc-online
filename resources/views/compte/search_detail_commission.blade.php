@@ -10,7 +10,7 @@
 </div>   
 <br>
 <br>
-<table class="table table-bordered table-striped example1">
+<table class="table table-bordered table-striped example1" id="all-table">
     <thead>
         <tr>
             <th>Date</th>

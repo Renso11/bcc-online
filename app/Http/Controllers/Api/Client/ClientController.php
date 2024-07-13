@@ -353,6 +353,7 @@ class ClientController extends Controller
                 'phone' => $req['phone'],
                 'status' => 1,
                 'double_authentification' => 0,
+                'verification_step_one' => 1,
                 'sms' => 1,
                 'deleted' => 0,
                 'created_at' => Carbon::now(),

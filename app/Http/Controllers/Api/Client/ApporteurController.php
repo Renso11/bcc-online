@@ -230,7 +230,7 @@ class ApporteurController extends Controller
             return sendError("Apporteur introuvable, verifier l'ID", [], 404);
         }
 
-        $operations =  ApporteurOperation::where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->get();
+        $operations =  ApporteurOperation::where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->paginate(10);
 
         return sendResponse($operations, 'Operations');
     }
@@ -242,7 +242,7 @@ class ApporteurController extends Controller
             return sendError("Apporteur introuvable, verifier l'ID", [], 404);
         }
 
-        $activations =  UserCardBuy::with('apporteur')->with('userClient')->with('userCard')->where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->get();
+        $activations =  UserCardBuy::with('apporteur')->with('userClient')->with('userCard')->where('deleted', 0)->where('apporteur_id', $apporteur->id)->orderBy('created_at', 'desc')->paginate(10);
 
         return sendResponse($activations, 'Activations');
     }

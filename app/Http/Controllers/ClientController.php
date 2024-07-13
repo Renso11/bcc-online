@@ -35,7 +35,7 @@ class ClientController extends Controller
 {
     public function clients(Request $request){
         try{
-            $userClients = UserClient::where('deleted',0)->where('verification',1)->orderBy('created_at','desc')->get();
+            $userClients = UserClient::where('deleted',0)->where('verification',1)->orderBy('lastname','asc')->paginate(50);
             
             $countries = $this->countries;
             return view('clients.index',compact('userClients','countries'));
@@ -99,7 +99,7 @@ class ClientController extends Controller
 
     public function clientsAttentes(Request $request){
         try{
-            $userClients = UserClient::where('deleted',0)->where('verification',0)->where('is_rejected','<>',1)->orderBy('created_at','desc')->get();
+            $userClients = UserClient::where('deleted',0)->where('verification',0)->where('is_rejected','<>',1)->orderBy('lastname','asc')->paginate(50);
             $countries = $this->countries;
             return view('clients.attentes',compact('userClients','countries'));
         } catch (\Exception $e) {
@@ -229,7 +229,7 @@ class ClientController extends Controller
 
     public function clientsRejetes(Request $request){
         try{
-            $userClients = UserClient::where('deleted',0)->where('is_rejected',1)->orderBy('updated_at','desc')->get();
+            $userClients = UserClient::where('deleted',0)->where('is_rejected',1)->orderBy('lastname','asc')->paginate(50);
             $countries = $this->countries;
             return view('clients.rejetes',compact('userClients','countries'));
         } catch (\Exception $e) {
@@ -239,7 +239,7 @@ class ClientController extends Controller
 
     public function clientsNonCompletes(Request $request){
         try{
-            $userClients = UserClient::where('deleted',0)->where('verification_step_one',1)->where('verification','<>',1)->orderBy('created_at','desc')->get();
+            $userClients = UserClient::where('deleted',0)->where('verification_step_one',1)->where('verification','<>',1)->orderBy('created_at','desc')->paginate(50);
             $countries = $this->countries;
             return view('clients.noncompletes',compact('userClients','countries'));
         } catch (\Exception $e) {
@@ -526,7 +526,7 @@ class ClientController extends Controller
                         "subCompany" => $accountId,
                         "return" => "RETURNPASSCODE"
                     ];    
-                    //dd($body);
+                    //dd($user->kycClient);
                     $body = json_encode($body,JSON_THROW_ON_ERROR);
                     
                     $headers = [

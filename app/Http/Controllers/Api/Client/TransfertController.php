@@ -67,7 +67,7 @@ class TransfertController extends Controller
             $frais = getFee($fraisAndRepartition,$montant);
 
             $soldeAvant = getCardSolde($sender_card); 
-            $reference_memo_gtp = unaccent('Transfert de ' . $montant . ' XOF. Frais de transaction : ' . $frais . ' XOF.');
+            $reference_memo_gtp = unaccent('    . Frais de transaction : ' . $frais . ' XOF.');
     
             $transfert = TransfertOut::create([
                 'id' => Uuid::uuid4()->toString(),
@@ -224,6 +224,8 @@ class TransfertController extends Controller
                     $transfert->solde_apres = $soldeApres;
                     $transfert->montant_recu = $montant - $frais;
                     $transfert->save();
+                    
+                    $paiementService->repartitionCommission($fraisAndRepartition,$frais,$montant,$referenceGtp, 'transfert');
                     
                     return sendResponse($transfert, 'Paiement effectué.. Votre transfert est en cours...');
                 }
@@ -705,7 +707,9 @@ class TransfertController extends Controller
             return sendResponse($transfert, 'Transfert effectué avec succes.');
         }else{
             Log::info('Le callback a été appelé 4');
-            // retourner les sous sur la carte
+
+            return 'echec de transfert';
+            /*/ retourner les sous sur la carte
             
             Log::info('echec'.'---'.$data['isPaymentSucces']);       
             $reference_memo_gtp = unaccent("Retour de fond suite a un echec de transfert. Montant : " . $transfert->montant_recu . " XOF.");
@@ -745,7 +749,7 @@ class TransfertController extends Controller
                 writeLog($message);
     
                 return sendResponse($transfert, 'Transfert effectué avec succes.');
-            }
+            }*/
 
         }
     }

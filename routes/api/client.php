@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Client\BeneficiaryController;
 use App\Http\Controllers\Api\Client\CardController;
 use App\Http\Controllers\Api\Client\RetraitController;
 use App\Http\Controllers\Api\Client\ApporteurController;
+use App\Http\Controllers\Api\OtherController;
 
 Route::post('buy/card', [CardController::class, 'buyCard'])->name('buyCard');
 Route::post('complete/buy/card/client', [CardController::class, 'completeBuyCard'])->name('completeBuyCard');
@@ -23,6 +24,8 @@ Route::get('card-info/client-info/{id}', [CardController::class, 'getClientInfo'
 Route::get('change/card/status', [CardController::class, 'changeCardStatus'])->name('changeCardStatus');
 Route::get('/check/promo/code/{promo_code}', [CardController::class, 'checkCodePromo'])->name('checkCodePromo');
 Route::post('save/signature', [ClientController::class, 'saveSignature'])->name('saveSignature');
+
+Route::get('show/card/infos/{card_id}', [CardController::class, 'showCardInfos'])->name('showCardInfos');
 
 Route::get('get/beneficiaries/{user_id}', [BeneficiaryController::class, 'getBeneficiaries'])->name('getBeneficiaries');
 Route::get('get/beneficiary/{beneficiary_id}', [BeneficiaryController::class, 'getBeneficiary'])->name('getBeneficiary');
@@ -116,6 +119,13 @@ Route::post('/callbacks/card/load/{id}', [DepotController::class, 'callBackCardL
 
 
 Route::post('/callbacks/transfer', [TransfertController::class, 'callBackTransfer'])->name('callBackTransfer');
+
+
+Route::post('/search/customer/with/account', [OtherController::class, 'searchCustomerWithAccount'])->name('searchCustomerWithAccount');
+Route::post('/transfert/card/to/card', [OtherController::class, 'transfertCardToCard'])->name('transfertCardToCard');
+Route::post('/transaction/activities', [OtherController::class, 'transactionActivity'])->name('transactionActivity');
+Route::post('/update/status', [OtherController::class, 'updateStatus'])->name('updateStatus');
+Route::post('/ping', [OtherController::class, 'ping'])->name('ping');
 
 
 

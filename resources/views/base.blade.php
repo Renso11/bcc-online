@@ -229,6 +229,11 @@
                                 <i class="fa fa-money"></i> <span>Transfert Admin</span>
                             </a>
                         </li>
+                        <li>
+                            <a href="/retrait/kkp" @if (Route::currentRouteName() == 'admin.transfert') class="active" @endif>
+                                <i class="fa fa-money"></i> <span>Retrait Kkp</span>
+                            </a>
+                        </li>
                     @endif
 
                     <li class="header">Exploitation</li>

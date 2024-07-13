@@ -274,34 +274,34 @@
     <script>
         $(".example1").DataTable({
             ordering: false
-        });
-
-        $('.btn-delete-module').on('click',function(e){
-            e.preventDefault()
-            var $this = $(this);
-            var id = $this.attr('data-id');
-            var $btn = $("#row-"+id).find('.delete-module')
-            var formData = new FormData($('#form-delete-'+id)[0]);
-            $('#del-service-'+id).modal('hide')
-            $btn.prop('disabled',true)
-            $btn.html('<i class="fa fa-spinner fa-spin"></i>')
-            $.ajax({
-                url: "/service/delete/"+id,
-                data: formData,
-                processData: false,
-                contentType: false,
-                method: "post",
-                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-                success: function(data){ 
-                    if(data == 'success'){ 
-                        var row = $(".example1").DataTable().row($("#row-"+id)).remove().draw();
-                        toastr.success("Module supprimé avec succes")
-                    }else{
-                        toastr.error("Echec de supression")
-                    }
-                }
             });
-        })
+
+            $('.btn-delete-module').on('click',function(e){
+                e.preventDefault()
+                var $this = $(this);
+                var id = $this.attr('data-id');
+                var $btn = $("#row-"+id).find('.delete-module')
+                var formData = new FormData($('#form-delete-'+id)[0]);
+                $('#del-service-'+id).modal('hide')
+                $btn.prop('disabled',true)
+                $btn.html('<i class="fa fa-spinner fa-spin"></i>')
+                $.ajax({
+                    url: "/service/delete/"+id,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    method: "post",
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function(data){ 
+                        if(data == 'success'){ 
+                            var row = $(".example1").DataTable().row($("#row-"+id)).remove().draw();
+                            toastr.success("Module supprimé avec succes")
+                        }else{
+                            toastr.error("Echec de supression")
+                        }
+                    }
+                });
+            })
 
         $('.btn-disable-module').on('click',function(e){
             e.preventDefault()

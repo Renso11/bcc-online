@@ -18,6 +18,7 @@ use App\Models\PartnerWalletDeposit;
 use App\Models\PasswordResetQuestion;
 use App\Models\TransfertAdmin;
 use App\Models\UserPartenaire;
+use App\Models\RetraitKkp;
 use App\Services\PaiementService;
 use GuzzleHttp\Client;
 use Illuminate\Support\Str;
@@ -295,6 +296,84 @@ class AppController extends Controller
             ]);
             
             return back()->withSuccess('Transfert effectué avec succes');
+            
+        } catch (\Exception $e) {
+            dd($e);
+            return  $e->getMessage();
+        };
+    }
+
+    public function retraitKkp(Request $request){
+        try {
+            $retraits = RetraitKkp::where('deleted',0)->orderBy('created_at', 'desc')->get();
+            return view('admin.retraitKkp',compact('retraits'));
+        } catch (\Exception $e) {
+            dd($e);
+            return  $e->getMessage();
+        };
+    }
+
+    public function retraitKkpAdd(Request $request){
+        try {
+
+            $base_url_kkp = "https://api.kkiapay.me";
+
+            $client = new Client();
+            $url = $base_url_kkp . "/api/v1/payments/deposit";
+
+            $telephone = env("WITHDRAW_KKP");
+            $montant = (int)$request->montant;
+
+            $partner_reference = substr($telephone, -4) . time();
+            $body = [
+                "phoneNumber" => $telephone,
+                "amount" => $montant,
+                "reason" => 'Transfert de ' . $montant . ' XOF vers le compte momo/flooz ' . $telephone . '.',
+                "partnerId" => $partner_reference
+            ];
+
+            $body = json_encode($body);
+            $headers = [
+                'x-private-key' =>"pk_20b69f7e83a417345810e281fd71bbe43d908484455ba01d384d992ba6f8a853",
+                'x-secret-key' => "sk_f069c954304d0ff5522c5b1055a38b8640994d87681e855d28eebc19a569ba24",
+                'x-api-key' => "653a4b85df3c403ad1fb39a64cc9a9ef874432db"
+            ];
+
+            $response = $client->request('POST', $url, [
+                'headers' => $headers,
+                'body' => $body
+            ]);
+
+            $resultat = json_decode($response->getBody());
+
+            $status = "PENDING";
+            $starttime = time();
+
+            while ($status == "PENDING") {
+                $externalTransaction = resultat_check_status_kkp($resultat->transactionId);
+                if ($externalTransaction->status == "SUCCESS") {
+                    $status = "SUCCESS";
+                    $message = ['success' => true, 'status' => 200, 'message' => 'Retrait kkp effectué avec succes', 'timestamp' => Carbon::now(), 'user' => 1];
+                    writeLog($message);
+                } else if ($externalTransaction->status == "FAILED") {
+                    $status = "FAILED";
+                    $message = ['success' => false, 'status' => 500, 'message' => 'Echec retrait kkp', 'timestamp' => Carbon::now()];
+                    writeLog($message);
+                    dd($externalTransaction);
+                } 
+            }
+
+            RetraitKkp::create([
+                'id' => Uuid::uuid4()->toString(),
+                'reference' => $externalTransaction->transactionId,
+                'amount' => $request->montant,
+                'status' => "success",
+                'deleted' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]);
+            //dd($externalTransaction);
+            return redirect()->route('retrait.kkp')->withSuccess('Retrait effectué avec success');
             
         } catch (\Exception $e) {
             dd($e);

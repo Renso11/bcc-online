@@ -76,6 +76,10 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <div class="mt-3"><nav aria-label="Page navigation example">
+                            {!! $userClients->links('pagination.custom') !!} 
+                        </div>
                     </div>
                 </div>
             </div>

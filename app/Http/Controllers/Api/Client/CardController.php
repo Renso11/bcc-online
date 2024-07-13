@@ -984,10 +984,7 @@ class CardController extends Controller
         } catch (\Exception $e) {
             return sendError($e->getMessage(), [], 500);
         };
-    }
-
-
-    
+    }    
     
     public function callBackCardPurchase(Request $request, PaiementService $paiementService)
     {
@@ -1148,5 +1145,97 @@ class CardController extends Controller
             writeLog($message);
             return sendError($e->getMessage(), [], 500);
         };
+    }
+
+    public function showCardInfos(Request $request, PaiementService $paiementService)
+    {
+        $base_url = env('BASE_GTP_API');
+        $programID = env('PROGRAM_ID');
+        $authLogin = env('AUTH_LOGIN');
+        $authPass = env('AUTH_PASS');
+
+        $encrypt_Key = env('ENCRYPT_KEY');
+        $base_url_vgs = "https://www.verygoodsecurity.com/";
+        $programID_vgs = "tok_sandbox_qz4oTazqqfircmkkwkh6eh";
+        
+        
+        $card = UserCard::where('id',$request->card_id)->first();
+        $customerId = decryptData((string) $card->customer_id, $encrypt_Key);
+        $lastDigits = decryptData((string) $card->last_digits, $encrypt_Key);
+
+        try {
+            $client = new Client();
+            $url = $base_url."accounts/".$customerId;
+        
+            $headers = [
+                'programId' => $programID,
+                'requestId' => Uuid::uuid4()->toString(),
+            ];
+        
+            $auth = [
+                $authLogin,
+                $authPass
+            ];
+            $response = $client->request('GET', $url, [
+                'auth' => $auth,
+                'headers' => $headers,
+            ]);
+        
+            $clientInfo = json_decode($response->getBody());
+        } catch (BadResponseException $e) {
+            $json = json_decode($e->getResponse()->getBody()->getContents());
+            $error = $json->title.'.'.$json->detail;
+            return sendError($error, [], 500);
+        }
+
+
+        if($card->pan !== null){
+            return sendResponse($card, 'Infos de la carte');
+        }
+
+        $client = new Client();
+        $cardHash = $clientInfo->cardHash;
+
+        $url = $base_url_vgs."/rest/api/v1/accounts/".$customerId."/pci-info";
+        
+        $body = [
+            "last4Digits”" => $lastDigits,
+            "cardHash" => $cardHash,
+        ];    
+        $body = json_encode($body);
+        
+        $headers = [
+            'programId' => $programID_vgs,
+            'requestId' => Uuid::uuid4()->toString(),
+            'Content-Type' => 'application/json', 'Accept' => 'application/json'
+        ];
+        
+        try {
+            $response = $client->request('POST', $url, [
+                'headers' => $headers,
+                'body' => $body,
+                'verify'  => false,
+            ]);    
+            $responseBody = json_decode($response->getBody());
+            
+            
+            $card->pan = $responseBody->pan;
+            $card->name = $responseBody->name;
+            $card->expire_date = $responseBody->expireDate;
+            $card->expire_date_card_format = $responseBody->expireDateCardFormat;
+            $card->cvv = $responseBody->cvv;
+            $card->card_status = $responseBody->cardStatus;
+
+            $card->status = 'completed';
+            $card->save();
+            return sendResponse($card, 'Achat terminé avec succes');
+        } catch (BadResponseException $e) {
+            $json = json_decode($e->getResponse()->getBody()->getContents());
+            $error = $json->title.'.'.$json->detail;
+            
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
+            writeLog($message);
+            return sendError($error, [], 500);
+        }
     }
 }
