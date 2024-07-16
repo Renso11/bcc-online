@@ -345,7 +345,7 @@ class AppController extends Controller
             ]);
 
             $resultat = json_decode($response->getBody());
-
+            
             $status = "PENDING";
             $starttime = time();
 

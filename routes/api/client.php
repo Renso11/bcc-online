@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\Client\RetraitController;
 use App\Http\Controllers\Api\Client\ApporteurController;
 use App\Http\Controllers\Api\OtherController;
 
+
+Route::get('get/vgs/credentials', [CardController::class, 'getVgsCredentials'])->name('getVgsCredentials');
 Route::post('buy/card', [CardController::class, 'buyCard'])->name('buyCard');
 Route::post('complete/buy/card/client', [CardController::class, 'completeBuyCard'])->name('completeBuyCard');
 Route::post('set/default/card', [CardController::class, 'setDefaultCard'])->name('setDefaultCard');

@@ -130,6 +130,7 @@
                                 <thead>
                                     <tr>
                                         <th>Date</th>
+                                        <th>Reference</th>
                                         <th>Moyen de paiement</th>
                                         <th>Montant</th>
                                         <th>Status</th>
@@ -139,6 +140,7 @@
                                     @foreach ($recharges as $item)
                                         <tr>
                                             <td>{{ $item->created_at->format('d-m-Y H:i:s') }}</td>
+                                            <td>{{ $item->moyen_paiement }}</td>
                                             <td>{{ $item->moyen_paiement }}</td>
                                             <td>{{ $item->montant }} F CFA</td>
                                             <td>

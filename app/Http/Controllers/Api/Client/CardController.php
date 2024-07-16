@@ -30,6 +30,28 @@ class CardController extends Controller
         $this->middleware('is-auth', ['except' => ['checkCodePromo','callBackCardPurchase']]);
     }
 
+    public function getVgsCredentials(Request $request){
+        
+        try{
+            $encrypt_Key = env('ENCRYPT_KEY');
+            $programId = env('VGS_PROGRAM_ID');
+            $vaultId = env('VGS_VAULT_ID');
+
+            $data = [
+                'programId' => encryptData($programId,$encrypt_Key),
+                'vaultId' => encryptData($vaultId,$encrypt_Key),
+                'environment' => "production", 
+                'path' => "/rest/api/v1/accounts/{accountId}/pci-info"
+            ];
+            return sendResponse($data, 'Version.');
+            
+        } catch (\Exception $e) {
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage().'-'.$e->getLine(),'timestamp' => Carbon::now()]; 
+            writeLog($message);
+            return sendError($e->getMessage(), [], 500);
+        }
+    }
+
     public function buyCard(Request $request, PaiementService $paiementService){
         
         try{
