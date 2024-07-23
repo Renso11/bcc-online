@@ -9,6 +9,9 @@ use App\Models\UserClient;
 use App\Models\Info;
 use App\Models\KycClient;
 use App\Models\UserCardBuy;
+use App\Models\Notification;
+use App\Models\Param;
+use App\Models\NotificationUserClient;
 use Illuminate\Support\Carbon;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\BadResponseException;
@@ -1144,6 +1147,7 @@ class ClientController extends Controller
             $nb_card = UserCard::where('user_client_id',$request->id)->orderBy('created_at','DESC')->count();
 
             $beneficiaires = Beneficiaire::where('user_client_id',$request->id)->where('deleted',0)->orderBy('id','DESC')->limit(5)->get();
+            $notifications = $client->unreadNotifications()->get();
 
             
             $transactions = Depot::with('partenaire')->with('userClient')
@@ -1172,6 +1176,7 @@ class ClientController extends Controller
             $data['beneficiaires'] = $beneficiaires;
             $data['transactions'] = $transactions;
             $data['client'] = $client;
+            $data['notifications'] = $notifications;
 
             $info_card = Info::where('deleted',0)->first();
 
@@ -1260,6 +1265,9 @@ class ClientController extends Controller
                 'transaction_id' => ["required" , "string"],
                 'type_transaction' => ["required" , "string"]
             ]);
+            if ($validator->fails()) {
+                return  sendError($validator->errors()->first(), [],422);
+            }
     
             $public_key = env('API_KEY_KKIAPAY');
             $private_key = env('PRIVATE_KEY_KKIAPAY');
@@ -1269,241 +1277,34 @@ class ClientController extends Controller
         
             $response = $kkiapay->verifyTransaction($request->transaction_id);
 
-            if($request->type_transaction == "load"){
+            
+            
+            if($request->type_transaction == "load"){   
                 $recharge = Recharge::where('id',$request->id)->first();
-        
-                if($recharge->status !== "completed"){
-                    if($response->status == 'SUCCESS'){
-                        $user = UserClient::where('id',$recharge->user_client_id)->first();
-                        $card = UserCard::where('id',$recharge->user_card_id)->first();
-                        
-                        $montant = $recharge->montant;
-                        
-                        $recharge->is_debited = 1;
-                        $recharge->save();
-                
-                        $fraisAndRepartition = getFeeAndRepartition('rechargement', $montant);
-                        $frais = getFee($fraisAndRepartition,$montant);
-                        $montantWithoutFee = $montant - $frais;
-                
-                        $soldeAvantDepot = getCardSolde($card);
-                
-                        try {
-                            $reference_memo_gtp = unaccent("Rechargement de " . $montantWithoutFee . " XOF sur votre carte. Frais de rechargement : " . $frais . " XOF");
-                            $cardCredited = $paiementService->cardCredited($card->customer_id, $card->last_digits, $montantWithoutFee, $user, $reference_memo_gtp); 
-                
-                            if($cardCredited == false){
-                                return sendError('Probleme lors du credit de la carte', [], 500);                    
-                            }else{
-                                $referenceGtp = $cardCredited->transactionId;                    
-                                $soldeApresDepot = $soldeAvantDepot + $montantWithoutFee;
-                                
-                                $recharge->reference_gtp = $referenceGtp;
-                                $recharge->frais = $frais;
-                                $recharge->montant_recu = $montantWithoutFee;
-                                $recharge->status =  'completed';
-                                $recharge->is_credited =  1;
-                                $recharge->solde_avant = $soldeAvantDepot;
-                                $recharge->solde_apres = $soldeApresDepot;
-                                $recharge->save();
-                                
-                                $message = getSms('rechargement', null, $montant, $frais, $soldeApresDepot, null, null);
-                                
-                                if($user->sms == 1){
-                                    sendSms($user->username,$message);
-                                }else{
-                                    try{
-                                        $arr = ['messages'=> $message,'objet'=>'Confirmation du rechargement','from'=>'bmo-uba-noreply@bestcash.me'];
-                                        Mail::to([$user->kycClient->email,])->send(new MailAlerte($arr));
-                                    } catch (\Exception $e) {
-                                        $message = ['success' => false, 'status' => 500, 'message' => 'Echec d\'envoi de mail.', 'timestamp' => Carbon::now(), 'user' => $user->id];  
-                                        writeLog($message);
-                                    }
-                                }
-                                
-                                $paiementService->repartitionCommission($fraisAndRepartition,$frais,$montant,$referenceGtp, 'rechargement');
-                                return sendResponse($recharge, 'Rechargement complété avec succes. Consulter votre solde');
-                            }
-                        } catch (BadResponseException $e) {        
-                            $json = json_decode($e->getResponse()->getBody()->getContents());
-                            $error = $json->title.'.'.$json->detail;
-                            $message = ['success' => false, 'status' => 500,'message' => $e->getLine().$e->getMessage(),'timestamp' => Carbon::now()]; 
-                            writeLog($message);
-                            return sendError($error, [], 500);
-                        }
-                    }else{
-                        $recharge->status = 'failed';
-                        $recharge->save();
-                        return sendError('Echec du paiement du rechargement', [], 500);
-                    }
+                if($response->status == 'SUCCESS'){
+                    $recharge->is_debited = 1;
+                    $recharge->status = "on_going_payment";
+                    $recharge->save();
+                    return sendResponse($recharge, 'Rechargement enregistre');
                 }else{
-                    // que faire qd cest deja complete
+                    $recharge->status = 'failed';
+                    $recharge->save();
+                    Log::info("Echec d'achat de reference ".$request->transaction_id);
+                    return sendError('Echec du paiement du rechargement', [], 500);
                 }
             }else{
                 $userCardBuy = UserCardBuy::where('id',$request->id)->first();
-                $user = UserClient::where('id',$userCardBuy->user_client_id)->first();
-
-                if($userCardBuy->status !== "completed"){   
-                    if($response->status == 'SUCCESS'){
-                        $base_url = env('BASE_GTP_API');
-                        $accountId = env('AUTH_DISTRIBUTION_ACCOUNT');
-                        $programID = env('PROGRAM_ID');
-                        $authLogin = env('AUTH_LOGIN');
-                        $authPass = env('AUTH_PASS');
-                        $encrypt_Key = env('ENCRYPT_KEY');
-    
-                        $userCardBuy->is_debited = 1;
-                        $userCardBuy->save();
-            
-                        $client = new Client();
-                        $url = $base_url."accounts/virtual";
-                        
-                        $name = $user->kycClient->name.' '.$user->kycClient->lastname;
-                        if (strlen($name) > 19){
-                            $name = substr($name, 0, 19);
-                        }
-                        $address = substr($user->kycClient->address, 0, 25);
-                        
-                        $body = [
-                            "firstName" => $user->kycClient->name,
-                            "lastName" => $user->kycClient->lastname,
-                            "preferredName" => unaccent($name),
-                            "address1" => $address,
-                            "city" => $user->kycClient->city,
-                            "country" => $user->kycClient->country,
-                            "stateRegion" => $user->kycClient->departement,
-                            "birthDate" =>  $user->kycClient->birthday,
-                            "idType" => $user->kycClient->piece_type,
-                            "idValue" => $user->kycClient->piece_id,
-                            "mobilePhoneNumber" => [
-                                "countryCode" => explode(' ',$user->kycClient->telephone)[0],
-                                "number" =>  explode(' ',$user->kycClient->telephone)[1],
-                            ],
-                            "emailAddress" => $user->kycClient->email,
-                            "accountSource" => "OTHER",
-                            "referredBy" => $accountId,
-                            "subCompany" => $accountId,
-                            "return" => "RETURNPASSCODE"
-                        ];    
-                        $body = json_encode($body);
-                        
-                        $headers = [
-                            'programId' => $programID,
-                            'requestId' => Uuid::uuid4()->toString(),
-                            'Content-Type' => 'application/json', 'Accept' => 'application/json'
-                        ];
-            
-                        $auth = [
-                            $authLogin,
-                            $authPass
-                        ];
-                        
-                        try {
-                            $response = $client->request('POST', $url, [
-                                'auth' => $auth,
-                                'headers' => $headers,
-                                'body' => $body,
-                                'verify'  => false,
-                            ]);    
-                            $responseBody = json_decode($response->getBody());
-            
-                            $oldCard = UserCard::where('deleted',0)->where('user_client_id',$user->id)->get();
-                            $firstly = 0;
-                            if(count($oldCard) == 0){
-                                $firstly = 1;
-                            }
-            
-                            $card = UserCard::create([
-                                'id' => Uuid::uuid4()->toString(),
-                                'user_client_id' => $user->id,
-                                'last_digits' => encryptData((string)$responseBody->registrationLast4Digits,$encrypt_Key),
-                                'customer_id' => encryptData((string)$responseBody->registrationAccountId,$encrypt_Key),
-                                'pass_code' => encryptData((string)$responseBody->registrationPassCode,$encrypt_Key),
-                                'type' => $request->type,
-                                'is_first' => $firstly,
-                                'is_buy' => 1,
-                                'deleted' => 0,
-                                'created_at' => Carbon::now(),
-                                'updated_at' => Carbon::now(),
-                            ]);
-                            
-                            $userCardBuy->user_card_id = $card->id;
-                            $userCardBuy->status = 'completed';
-                            $userCardBuy->save();
-            
-                            
-                            if($userCardBuy->userPartenaire){   
-            
-                                // Ajout compte de commission 
-                                $compteCommissionPartenaire = AccountCommission::where('partenaire_id',$userCardBuy->partenaire_id)->first();
-                                $soldeAvIncr = $compteCommissionPartenaire->solde;
-                                $compteCommissionPartenaire->solde += 400;
-                                $compteCommissionPartenaire->save();
-                                
-                                $soldeApIncr = $compteCommissionPartenaire->solde;
-                    
-                                AccountCommissionOperation::insert([
-                                    'id' => Uuid::uuid4()->toString(),
-                                    'reference_gtp'=> '',
-                                    'solde_avant' => $soldeAvIncr,
-                                    'montant' => 400,
-                                    'solde_apres' => $soldeApIncr,
-                                    'libelle' => 'Commission pour achat de carte par code promo',
-                                    'type' => 'credit',
-                                    'account_commission_id' => $compteCommissionPartenaire->id,
-                                    'deleted' => 0,
-                                    'created_at' => Carbon::now(),
-                                    'updated_at' => Carbon::now(),            
-                                ]);
-                            }else if ($userCardBuy->apporteur){
-                                $compteCommissionApporteur = Apporteur::where('id',$userCardBuy->apporteur->id)->first();
-                                $compteCommissionApporteur->solde_commission += 400;
-                                $compteCommissionApporteur->save();
-                                
-                    
-                                ApporteurOperation::insert([
-                                    'id' => Uuid::uuid4()->toString(),
-                                    'apporteur_id' => $userCardBuy->apporteur->id,
-                                    'montant' => 400,
-                                    'libelle' => 'Commission pour achat de carte par code promo',
-                                    'sens' => 'credit',
-                                    'deleted' => 0,
-                                    'created_at' => Carbon::now(),
-                                    'updated_at' => Carbon::now(),            
-                                ]);
-                            }
-                            
-                            $message = 'Felicitations! Votre achat de carte virtuelle Bcc est finalisé. Les informations suivantes sont celles de votre carte : Customer ID: '. $responseBody->registrationAccountId.', Quatre dernier Chiffre :'. $responseBody->registrationLast4Digits.', Registration pass code :'.$responseBody->registrationPassCode.'.';
-                            sendSms($userCardBuy->userClient->username,$message);
-            
-                            try{
-                                Mail::to([$user->kycClient->email,])->send(new MailVenteVirtuelle(['registrationAccountId' => $responseBody->registrationAccountId,'registrationLast4Digits' => $responseBody->registrationLast4Digits,'registrationPassCode' => $responseBody->registrationPassCode,'type' => $request->type])); 
-                            } catch (\Exception $e) {
-                                $message = ['success' => false, 'status' => 500, 'message' => 'Echec d\'envoi de mail.', 'timestamp' => Carbon::now(), 'user' => $user->id];  
-                                writeLog($message);
-                            }
-                            
-                            $message = ['success' => true, 'status' => 200,'message' => 'Achat effectué avec succes','timestamp' => Carbon::now(),'user' => $user->id]; 
-                            writeLog($message);
-                            return sendResponse($card, 'Achat terminé avec succes');
-                        } catch (BadResponseException $e) {
-                            $json = json_decode($e->getResponse()->getBody()->getContents());
-                            $error = $json->title.'.'.$json->detail;
-                            
-                            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
-                            writeLog($message);
-                            return sendError($error, [], 500);
-                        }
-                    }else{
-                        $userCardBuy->status = 'failed';
-                        $userCardBuy->save();
-                        return sendError('Echec du paiement du de la carte', [], 500);
-                    }
+                if($response->status == 'SUCCESS'){
+                    $userCardBuy->is_debited = 1;
+                    $userCardBuy->status = "on_going_payment";
+                    $userCardBuy->save();
+                    return sendResponse($userCardBuy, 'Achat enregistre');
                 }else{
-                    Log::info('echec de la vente de la carte'.'---ok');  
+                    $userCardBuy->status = 'failed';
+                    $userCardBuy->save();
+                    Log::info("Echec d'achat de reference ".$request->transaction_id);
                 }
             }
-            
         }catch (\Exception $e) {
             $message = ['success' => false, 'status' => 500,'message' => $e->getLine().$e->getMessage(),'timestamp' => Carbon::now()]; 
             writeLog($message);
@@ -1516,6 +1317,90 @@ class ClientController extends Controller
             $transactions = TransfertOut::where('status', 'pending')->where('user_client_id', $request->id)->where('deleted', 0)->orderBy('created_at','desc')->get();
             return sendResponse($transactions, 'Liste transactions.');
             
+        }catch (\Exception $e) {
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
+            writeLog($message);
+            return sendError($e->getMessage(), [], 500);
+        };
+    }
+
+    public function getTermAndCondition(Request $request){
+        try{
+            $param = Param::where('key_value','cgu')->where('status',1)->orderBy('created_at','desc')->first();
+            $param->content = $param->value;
+            
+            return sendResponse($param, 'cgu.');
+        }catch (\Exception $e) {
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
+            writeLog($message);
+            return sendError($e->getMessage(), [], 500);
+        };
+    }
+
+    public function getPricings(Request $request){
+        try{
+            $param = Param::where('key_value','pricing')->where('status',1)->where('deleted',0)->orderBy('created_at','desc')->first();
+            $param->content = $param->value;
+            
+            return sendResponse($param, 'Liste des prix.');
+        }catch (\Exception $e) {
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
+            writeLog($message);
+            return sendError($e->getMessage(), [], 500);
+        };
+    }
+    
+    public function getNotifications(Request $request){
+        try{
+            $token = JWTAuth::getToken();
+            $userId = JWTAuth::getPayload($token)->toArray()['sub'];
+            $client = UserClient::where('id',$userId)->first();
+
+            if ($request->has('read')) {
+                if($request->input('read') == 0){
+                    $notifications = $client->unreadNotifications();
+                }else{
+                    $notifications = $client->readNotifications();
+                }
+            }else{
+                $notifications = $client->notifications();
+            }
+
+            if ($request->has('priority')) {
+                $notifications->where('priority', $request->input('priority'));
+            }
+
+            $notifications = $notifications->get();
+
+            
+            return sendResponse($notifications, 'Liste notifications.');
+        }catch (\Exception $e) {
+            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
+            writeLog($message);
+            return sendError($e->getMessage(), [], 500);
+        };
+    }
+    
+    public function readNotification(Request $request){
+        try{
+
+            $notification = Notification::where('id',$request->id)->first();
+            
+            $token = JWTAuth::getToken();
+            $userId = JWTAuth::getPayload($token)->toArray()['sub'];
+                    
+            NotificationUserClient::insert([
+                'id' => Uuid::uuid4()->toString(),
+                'notification_id' => $notification->id,
+                'user_client_id' => $userId,
+                'status' => 'read',
+                'deleted' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),            
+            ]);
+            $notification->read = 1;
+            
+            return sendResponse($notification, 'Notification');
         }catch (\Exception $e) {
             $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
             writeLog($message);

@@ -124,102 +124,6 @@ class DepotController extends Controller
         };
     }
 
-
-    public function addNewDepotClientOld(Request $request, PaiementService $paiementService){
-        try {
-            $validator = Validator::make($request->all(), [
-                'user_id' => ["required" , "string"],
-                'user_card_id' => 'required',
-                'reference' => ["required" , "string"],
-                'montant' => ["required" , "integer"],
-                'moyen_paiement' => ["required" , "max:255", "regex:(momo|flooz|bmo|card)"],
-            ]);
-
-            if ($validator->fails()){
-                return  sendError($validator->errors()->first(), [],422);
-            }
-
-            $user = UserClient::where('id',$request->user_id)->first();
-            $card = UserCard::where('id',$request->user_card_id)->first();
-            
-            $recharge = Recharge::create([
-                'id' => Uuid::uuid4()->toString(),
-                'user_client_id' => $request->user_id,
-                'user_card_id' => $request->user_card_id,
-                'montant' => $request->montant,
-                'reference_operateur' => $request->reference,
-                'moyen_paiement' => $request->moyen_paiement,
-                'status' => 'pending',
-                'is_debited' => 0,
-                'deleted' => 0,
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now()
-            ]);
-            
-            $moyen_paiement = $request->moyen_paiement;
-            $reference = $request->reference;
-            $montant = $request->montant;
-
-            $checkPaiement = $paiementService->paymentVerification($moyen_paiement, $reference, $montant, $user->id);
-            
-            if($checkPaiement == true){
-                $recharge->is_debited = 1;
-                $recharge->save();
-
-                $fraisAndRepartition = getFeeAndRepartition('rechargement', $montant);
-                $frais = getFee($fraisAndRepartition,$montant); 
-                $montantWithoutFee = $montant - $frais;
-
-                $soldeAvantDepot = getCardSolde($card);
-
-                $reference_memo_gtp = unaccent("Rechargement de " . $montantWithoutFee . " XOF sur votre carte. Frais de rechargement : " . $frais . " XOF");
-                $cardCredited = $paiementService->cardCredited($card->customer_id, $card->last_digits, $montantWithoutFee, $user, $reference_memo_gtp);
-
-                if($cardCredited == false){
-                    return sendError('Probleme lors du credit de la carte', [], 500);                    
-                }else{
-                    $referenceGtp = $cardCredited->transactionId;                    
-                    $soldeApresDepot = $soldeAvantDepot + $montantWithoutFee;
-                    
-                    $recharge->reference_gtp = $referenceGtp;
-                    $recharge->frais = $frais;
-                    $recharge->montant_recu = $montantWithoutFee;
-                    $recharge->status =  'completed';
-                    $recharge->is_credited =  1;
-                    $recharge->solde_avant = $soldeAvantDepot;
-                    $recharge->solde_apres = $soldeApresDepot;
-                    $recharge->save();                    
-                    
-                    $message = getSms('rechargement', null, $montant, $frais, $soldeApresDepot, null, null);
-                    
-                    if($user->sms == 1){
-                        sendSms($user->username,$message);
-                    }else{
-                        try{
-                            $arr = ['messages'=> $message,'objet'=>'Confirmation du rechargement','from'=>'bmo-uba-noreply@bestcash.me'];
-                            Mail::to([$user->kycClient->email,])->send(new MailAlerte($arr)); 
-                        } catch (\Exception $e) {
-                            $message = ['success' => false, 'status' => 500, 'message' => 'Echec d\'envoi de mail.', 'timestamp' => Carbon::now(), 'user' => $user->id];  
-                            writeLog($message);
-                        }
-                    }
-                    
-                    $paiementService->repartitionCommission($fraisAndRepartition,$frais,$montant,$referenceGtp, 'rechargement');
-                    return sendResponse($recharge, 'Rechargement effectué avec succes. Consulter votre solde');
-                }
-            }else{
-                $recharge->reasons = $checkPaiement;
-                $recharge->status = 'failed';
-                $recharge->save();
-                return sendError('Probleme lors de la verification du paiement', [], 500);
-            }
-        } catch (\Exception $e) {
-            $message = ['success' => false, 'status' => 500,'message' => $e->getMessage(),'timestamp' => Carbon::now()]; 
-            writeLog($message);
-            return sendError($e->getMessage(), [], 500);
-        };
-    }
-
     public function completeDepotClient(Request $request, PaiementService $paiementService){
         try {
             $validator = Validator::make($request->all(), [
@@ -319,9 +223,6 @@ class DepotController extends Controller
         $payload = $request->getContent();
         
         $data = json_decode($payload, true);
-        $fullUrl = $request->fullUrl();
-        Log::info($payload);
-        Log::info($fullUrl);
         
         $recharge = Recharge::where('id',$request->id)->first();
 

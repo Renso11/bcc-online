@@ -275,7 +275,7 @@ class CashoutController extends Controller
                     }
                 }else{
                     $libelle = 'le compte '.$wallet->type.' '.$wallet->phone_code.$wallet->phone ;
-                    $momoCredited = $paiementService->momoCredited($wallet->phone_code.$wallet->phone, $montant, $userPartenaire);
+                    $momoCredited = $paiementService->momoCredited($wallet->phone_code.$wallet->phone, $montant);
                     if($momoCredited == "FAILED"){
                         return sendError('Echec lors du remboursement de la transaction', [], 500); 
                     }else if($momoCredited == "FAILED_TIME"){
@@ -424,7 +424,7 @@ class CashoutController extends Controller
                     }
                 }else{
                     $libelle = 'le compte '.$wallet->type.' '.$wallet->phone_code.$wallet->phone ;
-                    $momoCredited = $paiementService->momoCredited($wallet->phone_code.$wallet->phone, $montant, $userPartenaire);
+                    $momoCredited = $paiementService->momoCredited($wallet->phone_code.$wallet->phone, $montant);
                     if($momoCredited == "FAILED"){
                         return sendError('Echec lors du remboursement de la transaction', [], 500); 
                     }else if($momoCredited == "FAILED_TIME"){

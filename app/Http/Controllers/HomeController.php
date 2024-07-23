@@ -306,123 +306,7 @@ class HomeController extends Controller
     }
 
     
-   /* public function test(){
-        try {
-            $public_key = env('API_KEY_KKIAPAY');
-            $private_key = env('PRIVATE_KEY_KKIAPAY');
-            $secret = env('SECRET_KEY_KKIAPAY');
-        
-            $kkiapay = new \Kkiapay\Kkiapay($public_key, $private_key, $secret);
-            dd($kkiapay->verifyTransaction("qR4m8PUMl"));
-
-            $base_url_kkp = "https://api.kkiapay.me";
-
-            $client = new Client();
-            $url = $base_url_kkp . "/api/v1/payments/deposit";
-
-            $telephone = 22954960789;
-            $montant = 500;
-
-            $partner_reference = substr($telephone, -4) . time();
-            $body = [
-                "phoneNumber" => $telephone,
-                "amount" => $montant,
-                "reason" => 'Transfert de ' . $montant . ' XOF vers le compte momo/flooz ' . $telephone . '.',
-                "partnerId" => $partner_reference
-            ];
-
-            $body = json_encode($body);
-            $headers = [
-                'x-private-key' =>"pk_20b69f7e83a417345810e281fd71bbe43d908484455ba01d384d992ba6f8a853",
-                'x-secret-key' => "sk_f069c954304d0ff5522c5b1055a38b8640994d87681e855d28eebc19a569ba24",
-                'x-api-key' => "653a4b85df3c403ad1fb39a64cc9a9ef874432db"
-            ];
-
-            $response = $client->request('POST', $url, [
-                'headers' => $headers,
-                'body' => $body
-            ]);
-
-            $resultat = json_decode($response->getBody());
-
-            $status = "PENDING";
-            $starttime = time();
-
-            while ($status == "PENDING") {
-                $externalTransaction = resultat_check_status_kkp($resultat->transactionId);
-                if ($externalTransaction->status == "SUCCESS") {
-                    $status = "SUCCESS";
-                    $message = ['success' => true, 'status' => 200, 'message' => 'Paiement momo effectué avec succes', 'timestamp' => Carbon::now(), 'user' => 1];
-                    writeLog($message);
-                    dd($resultat);
-                } else if ($externalTransaction->status == "FAILED") {
-                    $status = "FAILED";
-                    $message = ['success' => false, 'status' => 500, 'message' => 'Echec lors du paiement du transfert', 'timestamp' => Carbon::now()];
-                    writeLog($message);
-                    dd($status);
-                } else {
-                    $now = time() - $starttime; 
-                    if ($now > 125) {
-                        $status = "FAILED";
-                        $message = ['success' => false, 'status' => 500, 'message' => 'Echec de confirmation du transfert', 'timestamp' => Carbon::now()];
-                        writeLog($message);
-                        dd($status);
-                    }
-                    $status = $externalTransaction->status;
-                }
-            }
-            dd($resultat);
-        } catch (BadResponseException $e) {
-            $message = ['success' => false, 'status' => 500, 'message' => $e->getMessage(), 'timestamp' => Carbon::now()];
-            writeLog($message);
-            dd($e);
-        }
-    }*/
-    
-    public function test(PaiementService $paiementService){ 
-        dd('ok');
-        $base_url = 'https://gtpportal.com/rest/api/v1/';
-        $programID = 66;
-        $authLogin = '5404b9d0-15a5-448f-9664-40fab9082621';
-        $authPass = 'z^MN0X2]kMm6!6993^}{';
-        $accountId = 17225124;
-
-        $client = new Client();
-        $url =  $base_url."accounts/18144275/transactions";
-        
-        $body = [
-            "transferType" => "WalletToCard",
-            "transferAmount" =>  50000,
-            "currencyCode" => "XOF",
-            "referenceMemo" => 'Transfert bcc',
-            "last4Digits" => '3195'
-        ];
-
-        $body = json_encode($body);
-        
-        $headers = [
-            'programId' => $programID,
-            'requestId' => Uuid::uuid4()->toString(),
-            'accountId' => $accountId,
-            'Content-Type' => 'application/json', 'Accept' => 'application/json'
-        ];
-    
-        $auth = [
-            $authLogin,
-            $authPass
-        ];
-
-        $response = $client->request('POST', $url, [
-            'auth' => $auth,
-            'headers' => $headers,
-            'body' => $body,
-            'verify'  => false,
-        ]);
-
-        dd(json_decode($response->getBody()));
-    }
-
-   /*public function test(PaiementService $paiementService){
+    public function test(PaiementService $paiementService){
         //dd('ok');
         /*try {
             $base_url = 'https://gtpportal.com/rest/api/v1/';
@@ -432,7 +316,19 @@ class HomeController extends Controller
             $accountId = 17225124;
     
             $client = new Client();
-            $url =  $base_url."accounts/14417554/transactions";
+            $url =  $base_url."accounts/fund-transfer";
+            
+            $body = [
+                "paymentType" => "C2C",
+                "fromAccountId" => 19358089,
+                "transferAmount" => 216,
+                "currencyCode" => "XOF",
+                "toAccountId" => 13173334,
+                "last4Digits" => "3229",
+                "fromCardReferenceMemo" => "Transfer fees 14/07/2024"
+            ];
+
+            $body = json_encode($body);
             
             $headers = [
                 'programId' => $programID,
@@ -446,12 +342,13 @@ class HomeController extends Controller
                 $authPass
             ];
 
-            $response = Http::withHeaders($headers)
-            ->withBasicAuth($authLogin, $authPass)
-            ->get($url, [
-                'StartDate' => '01-MAY-2024',
-                'EndDate' => '17-MAY-2024'
+            $response = $client->request('POST', $url, [
+                'auth' => $auth,
+                'headers' => $headers,
+                'body' => $body,
+                'verify'  => false,
             ]);
+
             dd(json_decode($response->getBody()));
         } catch (\Exception $e) {
             dd($e);
@@ -495,119 +392,8 @@ class HomeController extends Controller
             $json = json_decode($e->getResponse()->getBody()->getContents());   
             $error = $json->title.'.'.$json->detail;
             return sendError($error, [], 500);
-        }
+        }*/
 
-    }
-
-    /*public function test(){
-        try {
-
-            $base_url_bmo = env('BASE_BMO');
-
-            $client = new Client();
-            $url = "https://svc.bmo.bestcash.me/external/operations/credit";
-
-            $body = [
-                "amount" => 5000,
-                "customer" => [
-                    "phone" => '+22962617848',
-                    "firstname" => 'Aurens',
-                    "lastname" => 'GBEVE'
-                ]
-            ];
-
-            $body = json_encode($body);
-
-            $headers = [
-                'X-Auth-ApiKey' => 22990157696,
-                'X-Auth-ApiSecret' => "UzrhEzUXPFp0+w==",
-                'Content-Type' => 'application/json', 'Accept' => 'application/json'
-            ];
-
-            $response = $client->request('POST', $url, [
-                'headers' => $headers,
-                'body' => $body,
-                'verify'  => false,
-            ]);
-
-            $resultat_credit_bmo = json_decode($response->getBody());
-
-            dd($resultat_credit_bmo);
-
-            return $resultat_credit_bmo;
-        } catch (BadResponseException $e) {
-            dd($e);
-        }
-    }
-
-    public function test(){
-        try {
-            $base_url_kkp = "https://api.kkiapay.me";
-
-            $client = new Client();
-            $url = $base_url_kkp . "/api/v1/payments/deposit";
-
-            $telephone = 22967484867;
-            $montant = 51000;
-
-            $partner_reference = substr($telephone, -4) . time();
-            $body = [
-                "phoneNumber" => $telephone,
-                "amount" => $montant,
-                "reason" => 'Transfert de ' . $montant . ' XOF vers le compte momo/flooz ' . $telephone . '.',
-                "partnerId" => $partner_reference
-            ];
-
-            $body = json_encode($body);
-            $headers = [
-                'x-private-key' =>"pk_20b69f7e83a417345810e281fd71bbe43d908484455ba01d384d992ba6f8a853",
-                'x-secret-key' => "sk_f069c954304d0ff5522c5b1055a38b8640994d87681e855d28eebc19a569ba24",
-                'x-api-key' => "653a4b85df3c403ad1fb39a64cc9a9ef874432db"
-            ];
-
-            $response = $client->request('POST', $url, [
-                'headers' => $headers,
-                'body' => $body
-            ]);
-
-            $resultat = json_decode($response->getBody());
-
-            $status = "PENDING";
-            $starttime = time();
-
-            while ($status == "PENDING") {
-                $externalTransaction = resultat_check_status_kkp($resultat->transactionId);
-                if ($externalTransaction->status == "SUCCESS") {
-                    $status = "SUCCESS";
-                    $message = ['success' => true, 'status' => 200, 'message' => 'Paiement momo effectué avec succes', 'timestamp' => Carbon::now(), 'user' => 1];
-                    writeLog($message);
-                    dd($resultat);
-                } else if ($externalTransaction->status == "FAILED") {
-                    $status = "FAILED";
-                    $message = ['success' => false, 'status' => 500, 'message' => 'Echec lors du paiement du transfert', 'timestamp' => Carbon::now()];
-                    writeLog($message);
-                    dd($status);
-                } else {
-                    $now = time() - $starttime;
-                    if ($now > 125) {
-                        $status = "FAILED";
-                        $message = ['success' => false, 'status' => 500, 'message' => 'Echec de confirmation du transfert', 'timestamp' => Carbon::now()];
-                        writeLog($message);
-                        dd($status);
-                    }
-                    $status = $externalTransaction->status;
-                }
-            }
-            dd($resultat);
-        } catch (BadResponseException $e) {
-            $message = ['success' => false, 'status' => 500, 'message' => $e->getMessage(), 'timestamp' => Carbon::now()];
-            writeLog($message);
-            dd($e);
-        }
-    }
-    
-    /*
-    public function test(){
         try {
             $base_url_bmo = env('BASE_BMO');
 
@@ -615,7 +401,7 @@ class HomeController extends Controller
             $url = "https://svc.bmo.bestcash.me/external/operations-collect/cancel";
             
             $body = [
-                "operation" => "OPATRCO20240401125436557100175"
+                "operation" => "OPATRCO20240719105338841900350"
             ];
 
             $body = json_encode($body);
@@ -636,7 +422,7 @@ class HomeController extends Controller
         } catch (BadResponseException $e) {
             dd($e);
         }
-    }*/
+    }
 
     public function checkUploadedFileProperties($extension, $fileSize){
         $valid_extension = array("csv", "xlsx", "xls"); //Only want csv and excel files
@@ -651,4 +437,4 @@ class HomeController extends Controller
         }
     }
     
-    }
+}

@@ -6,6 +6,8 @@
     Parametres application client
 @endsection
 @section('css')
+
+    <link rel="stylesheet" href="/plugins/bootstrap-wysihtml5/bootstrap3-wysihtml5.min.css">
     <link rel="stylesheet" href="/bower_components/datatables.net-bs/css/dataTables.bootstrap.min.css">
 @endsection
 @section('content')
@@ -202,8 +204,82 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-md-12">
+                    <div class="box">
+                        <div class="box-header">
+                            <h3 class="box-title">Conditions generales d'utilisation </h3>
+                        </div>
+
+                        <div class="box-body">
+                            <form action="/save/param" method="POST" id="post-form">
+                                @csrf
+                                <div class="form-group">
+                                    <input type="hidden" name="key_value" value="CGU" class="form-control" id="title" required>
+                                    <label for="content">Content</label>
+                                    <div id="editorjs"></div>
+                                    <textarea name="content" class="cgu" style="display:none;"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Enregistrer</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="box">
+                        <div class="box-header">
+                            <h3 class="box-title">Pricing </h3>
+                        </div>
+
+                        <div class="box-body">
+                            <form action="/save/param" method="POST" id="post-form">
+                                @csrf
+                                <div class="form-group">
+                                    <input type="hidden" name="key_value" value="pricing" class="form-control" id="title" required>
+                                    <label for="content">Content</label>
+                                    <div id="editorjs1"></div>
+                                    <textarea name="content" class="pricing" style="display:none;"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Enregistrer</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-12">
+                    <div class="box">
+                        <div class="box-header">
+                            <h3 class="box-title">Notifications </h3>
+                        </div>
+
+                        <div class="box-body">
+                            <form action="/save/notification" method="POST" id="notification-form">
+                                @csrf
+                                <div class="form-group">
+                                    <label for="title">Libelle</label>
+                                    <input type="text" name="libelle" class="form-control" id="title" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="title">Priorité</label>
+                                    <select class="form-control select2bs4" required name="priorite" data-placeholder="Selectionner le niveau">
+                                        <option value="">Selectionner le niveau </option>
+                                        <option value="hot">Important</option>
+                                        <option value="nothot">Moins important </option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="content">Content</label>
+                                    <div id="notificationEditorJs"></div>
+                                    <textarea name="content" class="notification" style="display:none;"></textarea>
+                                </div>
+                                <button type="submit" id="notificationBtn" class="btn btn-primary">Enregistrer</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+        
 
         <div class="modal fade" id="addService" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel1">
             <div class="modal-dialog modal-xs" role="document">
@@ -269,39 +345,64 @@
 @endsection
 
 @section('js')
+    <script src="/plugins/bootstrap-wysihtml5/bootstrap3-wysihtml5.all.min.js"></script>
     <script src="/bower_components/datatables.net/js/jquery.dataTables.min.js"></script>
-    <script src="/bower_components/datatables.net-bs/js/dataTables.bootstrap.min.js"></script>
+    <script src="/bower_components/datatables.net-bs/js/dataTables.bootstrap.min.js"></script>   
+
+    <script src="https://cdn.ckeditor.com/ckeditor5/35.0.1/classic/ckeditor.js"></script>
+    <script>
+        ClassicEditor
+        .create(document.querySelector('.cgu'))
+        .catch(error => {
+            console.error(error);
+        });
+    </script>
+    <script>
+        ClassicEditor
+        .create(document.querySelector('.pricing'))
+        .catch(error => {
+            console.error(error);
+        });
+    </script>
+    <script>
+        ClassicEditor
+        .create(document.querySelector('.notification'))
+        .catch(error => {
+            console.error(error);
+        });
+    </script>
+
     <script>
         $(".example1").DataTable({
             ordering: false
-            });
+        });
 
-            $('.btn-delete-module').on('click',function(e){
-                e.preventDefault()
-                var $this = $(this);
-                var id = $this.attr('data-id');
-                var $btn = $("#row-"+id).find('.delete-module')
-                var formData = new FormData($('#form-delete-'+id)[0]);
-                $('#del-service-'+id).modal('hide')
-                $btn.prop('disabled',true)
-                $btn.html('<i class="fa fa-spinner fa-spin"></i>')
-                $.ajax({
-                    url: "/service/delete/"+id,
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    method: "post",
-                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-                    success: function(data){ 
-                        if(data == 'success'){ 
-                            var row = $(".example1").DataTable().row($("#row-"+id)).remove().draw();
-                            toastr.success("Module supprimé avec succes")
-                        }else{
-                            toastr.error("Echec de supression")
-                        }
+        $('.btn-delete-module').on('click',function(e){
+            e.preventDefault()
+            var $this = $(this);
+            var id = $this.attr('data-id');
+            var $btn = $("#row-"+id).find('.delete-module')
+            var formData = new FormData($('#form-delete-'+id)[0]);
+            $('#del-service-'+id).modal('hide')
+            $btn.prop('disabled',true)
+            $btn.html('<i class="fa fa-spinner fa-spin"></i>')
+            $.ajax({
+                url: "/service/delete/"+id,
+                data: formData,
+                processData: false,
+                contentType: false,
+                method: "post",
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                success: function(data){ 
+                    if(data == 'success'){ 
+                        var row = $(".example1").DataTable().row($("#row-"+id)).remove().draw();
+                        toastr.success("Module supprimé avec succes")
+                    }else{
+                        toastr.error("Echec de supression")
                     }
-                });
-            })
+                }
+            });
+        })
 
         $('.btn-disable-module').on('click',function(e){
             e.preventDefault()

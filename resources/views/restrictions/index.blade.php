@@ -12,7 +12,7 @@
         <div class="container-fluid">
             <div class="row">
                 <div class="col-12">
-                    @if (hasPermission('admin.restrictions.add'))
+                    @if (hasPermission('admin.restrictions'))
                         <button type="button" class="btn waves-effect waves-light btn-primary" data-toggle="modal" data-target="#add-gamme"> Ajouter une restriction </button>
                         <br>
                         <br>

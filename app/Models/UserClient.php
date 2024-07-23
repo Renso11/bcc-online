@@ -44,4 +44,24 @@ class UserClient extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims() {
         return [];
     }    
+
+    public function notifications()
+    {
+        return $this->belongsToMany(Notification::class, 'notification_user_clients')
+                    ->withPivot('read')
+                    ->withTimestamps();
+    }
+    
+    public function unreadNotifications()
+    {
+        return Notification::select("id","label","priority","created_at")->whereDoesntHave('userClients', function ($query) {
+            $query->where('user_client_id', $this->id);
+        });
+    }
+    public function readNotifications()
+    {
+        return Notification::whereHas('users', function ($query) {
+            $query->where('user_client_id', $this->id);
+        })->get();
+    }
 }

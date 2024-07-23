@@ -8,6 +8,7 @@ use App\Models\CompteCommissionOperation;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\BadResponseException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
 
 class PaiementService
@@ -105,15 +106,11 @@ class PaiementService
                 'body' => $body,
                 'verify'  => false,
             ]);
-            $message = ['success' => true, 'status' => 200, 'message' => 'Rechargement effectué avec succes', 'timestamp' => Carbon::now(), 'user' => $user->id];
-            writeLog($message);
             $responseBody = json_decode($response->getBody());
             return $responseBody;
         } catch (BadResponseException $e) {
             $json = json_decode($e->getResponse()->getBody()->getContents());
             $error = $json->title . '.' . $json->detail;
-            $message = ['success' => false, 'status' => 500, 'message' => $error, 'timestamp' => Carbon::now(), 'user' => $user->id];
-            writeLog($message);
             return false;
         }
     }
@@ -198,7 +195,7 @@ class PaiementService
                 $responseBody = json_decode($response->getBody());
                 return $responseBody;
             } catch (BadResponseException $e) {
-                $json = json_decode($e->getResponse()->getBody()->getContents());
+                $json = $e->getResponse()->getBody()->getContents();
                 $message = ['success' => false, 'status' => 500, 'message' => $json, 'timestamp' => Carbon::now(), 'user' => $user->id];
                 writeLog($message);
                 return false;
@@ -257,7 +254,7 @@ class PaiementService
         //Check bmo status;
     }
 
-    public function momoCredited($telephone, $montant, $user)
+    public function momoCredited($telephone, $montant, $partner_reference = null)
     {
         try {
             $base_url_kkp = env('BASE_KKIAPAY');
@@ -265,12 +262,13 @@ class PaiementService
             $client = new Client();
             $url = $base_url_kkp . "/api/v1/payments/deposit";
 
-            $partner_reference = substr($telephone, -4) . time();
+            $reference = $partner_reference == null ? substr($telephone, -4) . time() : $partner_reference;
+            Log::info($reference);
             $body = [
                 "phoneNumber" => $telephone,
                 "amount" => $montant,
                 "reason" => 'Transfert de ' . $montant . ' XOF vers le compte momo/flooz ' . $telephone . '.',
-                "partnerId" => $partner_reference
+                "partnerId" => $reference
             ];
 
             $body = json_encode($body);
@@ -286,34 +284,6 @@ class PaiementService
             ]);
 
             $resultat = json_decode($response->getBody());
-            //return resultat_check_status_kkp($resultat->transactionId);
-            // check momo status
-            /*$status = "PENDING";
-            $starttime = time();
-
-            while ($status == "PENDING") {
-                $externalTransaction = resultat_check_status_kkp($resultat->transactionId);
-                if ($externalTransaction->status == "SUCCESS") {
-                    $status = "SUCCESS";
-                    $message = ['success' => true, 'status' => 200, 'message' => 'Paiement momo effectué avec succes', 'timestamp' => Carbon::now(), 'user' => $user];
-                    writeLog($message);
-                    return $externalTransaction;
-                } else if ($externalTransaction->status == "FAILED") {
-                    $status = "FAILED";
-                    $message = ['success' => false, 'status' => 500, 'message' => 'Echec lors du paiement du transfert', 'timestamp' => Carbon::now()];
-                    writeLog($message);
-                    return $status;
-                } else {
-                    $now = time() - $starttime;
-                    if ($now > 125) {
-                        $status = "FAILED_TIME";
-                        $message = ['success' => false, 'status' => 500, 'message' => 'Echec de confirmation du transfert', 'timestamp' => Carbon::now()];
-                        writeLog($message);
-                        return $status;
-                    }
-                    $status = $externalTransaction->status;
-                }
-            }*/
             return $resultat;
         } catch (BadResponseException $e) {
             $message = ['success' => false, 'status' => 500, 'message' => $e->getMessage(), 'timestamp' => Carbon::now()];

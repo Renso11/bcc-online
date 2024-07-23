@@ -30,7 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         View::composer('base', function ($view) {
             $compteCommissions = CompteCommission::where('deleted',0)->get();         
-            $view->with('compteCommissions', $compteCommissions);
+            $view->with('compteCommissions', $compteCommissions)->with('nonce');
         });
     }
 }

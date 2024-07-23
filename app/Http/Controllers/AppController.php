@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Mail\MailAlerte;
 use App\Models\AccountDistribution;
 use App\Models\AccountDistributionOperation;
-use App\Models\FrontPayment;
+use App\Models\Notification as ModelNot;
+use App\Models\NotificationUserClient;
 use Illuminate\Http\Request;
 use App\Models\Service;
 use Ramsey\Uuid\Uuid;
+use App\Models\Param;
 use App\Models\Info;
 use App\Models\kkiapayRecharge;
 use App\Models\PartnerAllWallet;
@@ -19,11 +21,14 @@ use App\Models\PasswordResetQuestion;
 use App\Models\TransfertAdmin;
 use App\Models\UserPartenaire;
 use App\Models\RetraitKkp;
+use App\Models\RetraitAdmin;
 use App\Services\PaiementService;
+use App\Services\Notification;
 use GuzzleHttp\Client;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class AppController extends Controller
@@ -198,9 +203,15 @@ class AppController extends Controller
         }
     }
 
+
+
+
+
+
+
     public function transfertAdmin(Request $request){
         try {
-            $transferts = TransfertAdmin::where('deleted',0)->get();
+            $transferts = TransfertAdmin::where('deleted',0)->orderBy('created_at','desc')->get();
             return view('admin.transfert',compact('transferts'));
         } catch (\Exception $e) {
             dd($e);
@@ -210,90 +221,124 @@ class AppController extends Controller
 
     public function transfertAdminAdd(Request $request){
         try {
+            if($request->type == "card"){
+                $base_url = env('BASE_GTP_API');
+                $programID = env('PROGRAM_ID');
+                $authLogin = env('AUTH_LOGIN');
+                $authPass = env('AUTH_PASS');
+                $accountId = env('AUTH_DISTRIBUTION_ACCOUNT');
+    
+                $client = new Client();
+                $url =  $base_url."accounts/".$request->customer_id."/transactions";
+    
+                $body = [
+                    "transferType" => "WalletToCard",
+                    "transferAmount" => $request->montant,
+                    "currencyCode" => "XOF",
+                    "referenceMemo" => 'Transfert admin', 
+                    "last4Digits" => $request->last_digits
+                ];
+    
+                $body = json_encode($body);
+                
+                $headers = [
+                    'programId' => $programID,
+                    'requestId' => Uuid::uuid4()->toString(),
+                    'accountId' => $accountId,
+                    'Content-Type' => 'application/json', 'Accept' => 'application/json'
+                ];
             
-            $base_url = env('BASE_GTP_API');
-            $programID = env('PROGRAM_ID');
-            $authLogin = env('AUTH_LOGIN');
-            $authPass = env('AUTH_PASS');
-            $accountId = env('AUTH_DISTRIBUTION_ACCOUNT');
+                $auth = [
+                    $authLogin,
+                    $authPass
+                ];
+    
+                $response = $client->request('POST', $url, [
+                    'auth' => $auth,
+                    'headers' => $headers,
+                    'body' => $body,
+                    'verify'  => false,
+                ]);
+                
+                $reference = json_decode($response->getBody())->transactionId;
 
-            $client = new Client();
-            $url =  $base_url."accounts/".$request->customer_id."/transactions";
+            }else if($request->type == "momo"){
 
-            $body = [
-                "transferType" => $request->sens == 'debit' ? "WalletToCard" : "CardToWallet",
-                "transferAmount" => $request->montant,
-                "currencyCode" => "XOF",
-                "referenceMemo" => 'Transfert admin de '.$request->montant.' XOF. par '. Auth::user()->name.' '.Auth::user()->lastname, 
-                "last4Digits" => $request->last_digits
-            ];
+                $base_url_kkp = env('BASE_KKIAPAY');
 
-            $body = json_encode($body);
+                $client = new Client();
+                $url = $base_url_kkp . "/api/v1/payments/deposit";
+    
+                $partner_reference = substr($request->numero, -4) . time();
+                $body = [
+                    "phoneNumber" => $request->numero,
+                    "amount" => $request->montant,
+                    "reason" => 'Transfert de ' . $request->montant . ' XOF vers le compte momo/flooz ' . $request->numero . '.',
+                    "partnerId" => $partner_reference
+                ];
+    
+                $body = json_encode($body);
+                $headers = [
+                    'x-private-key' => env('PRIVATE_KEY_KKIAPAY'),
+                    'x-secret-key' => env('SECRET_KEY_KKIAPAY'),
+                    'x-api-key' => env('API_KEY_KKIAPAY')
+                ];
+    
+                $response = $client->request('POST', $url, [
+                    'headers' => $headers,
+                    'body' => $body
+                ]);
+    
+                $reference = json_decode($response->getBody())->transactionId;
+            }else{
+
+                $base_url_bmo = env('BASE_BMO');
+
+                $client = new Client();
+                $url = $base_url_bmo . "/operations/credit";
+    
+                $body = [
+                    "amount" => $request->montant,
+                    "customer" => [
+                        "phone" => '+'.$request->numero,
+                        "firstname" => "Admin",
+                        "lastname" => "Admin"
+                    ]
+                ];
+    
+                $body = json_encode($body);
+    
+                $headers = [
+                    'X-Auth-ApiKey' => env('APIKEY_BMO_CREDIT'),
+                    'X-Auth-ApiSecret' => env('APISECRET_BMO_CREDIT'),
+                    'Content-Type' => 'application/json', 'Accept' => 'application/json'
+                ];
+    
+                $response = $client->request('POST', $url, [
+                    'headers' => $headers,
+                    'body' => $body,
+                    'verify'  => false,
+                ]);
+    
+                $reference = json_decode($response->getBody())->reference;
+            }
             
-            $headers = [
-                'programId' => $programID,
-                'requestId' => Uuid::uuid4()->toString(),
-                'accountId' => $accountId,
-                'Content-Type' => 'application/json', 'Accept' => 'application/json'
-            ];
-        
-            $auth = [
-                $authLogin,
-                $authPass
-            ];
-
-            $response = $client->request('POST', $url, [
-                'auth' => $auth,
-                'headers' => $headers,
-                'body' => $body,
-                'verify'  => false,
-            ]);
-            
-
-            $client = new Client();
-            $url =  $base_url."accounts/".$request->compte."/transactions";
-
-            $body = [
-                "transferType" => $request->sens == 'debit' ? "CardToWallet" : "WalletToCard" ,
-                "transferAmount" => $request->montant,
-                "currencyCode" => "XOF",
-                "referenceMemo" => 'Transfert admin de '.$request->montant.' XOF. par '. Auth::user()->name.' '.Auth::user()->lastname,
-                "last4Digits" => $request->compte_last
-            ];
-
-            $body = json_encode($body);
-            
-            $headers = [
-                'programId' => $programID,
-                'requestId' => Uuid::uuid4()->toString(),
-                'accountId' => $accountId,
-                'Content-Type' => 'application/json', 'Accept' => 'application/json'
-            ];
-        
-            $auth = [
-                $authLogin,
-                $authPass
-            ];
-            
-            $response = $client->request('POST', $url, [
-                'auth' => $auth,
-                'headers' => $headers,
-                'body' => $body,
-                'verify'  => false,
-            ]);
-
+                
             TransfertAdmin::create([
                 'id' => Uuid::uuid4()->toString(),
-                'compte' => $request->compte,
-                'program' => $request->compte_last,
-                'sens' => $request->sens,
+                'reference' => $reference,
+                'type' => $request->type,
                 'customer_id' => $request->customer_id,
                 'last_digits' => $request->last_digits,
                 'montant' => $request->montant,
+                'numero' => $request->numero,
+                'user_id' => Auth::user()->id,
                 'deleted' => 0,
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now()
             ]);
+
+            
             
             return back()->withSuccess('Transfert effectué avec succes');
             
@@ -302,6 +347,122 @@ class AppController extends Controller
             return  $e->getMessage();
         };
     }
+
+    public function retraitAdmin(Request $request){
+        try {
+            $retraits = RetraitAdmin::where('deleted',0)->orderBy('created_at', 'desc')->get();
+            return view('admin.retraitAdmin',compact('retraits'));
+        } catch (\Exception $e) {
+            dd($e);
+            return  $e->getMessage();
+        };
+    }
+
+    public function retraitAdminAdd(Request $request){
+        try {
+            if($request->type == "card"){
+                $base_url = env('BASE_GTP_API');
+                $programID = env('PROGRAM_ID');
+                $authLogin = env('AUTH_LOGIN');
+                $authPass = env('AUTH_PASS');
+                $accountId = env('AUTH_DISTRIBUTION_ACCOUNT');
+    
+                $client = new Client();
+                $url =  $base_url."accounts/".$request->customer_id."/transactions";
+    
+                $body = [
+                    "transferType" => "CardToWallet",
+                    "transferAmount" => $request->montant,
+                    "currencyCode" => "XOF",
+                    "referenceMemo" => 'Retrait admin de '.$request->montant.' XOF. par '. Auth::user()->name.' '.Auth::user()->lastname, 
+                    "last4Digits" => $request->last_digits
+                ];
+    
+                $body = json_encode($body);
+                
+                $headers = [
+                    'programId' => $programID,
+                    'requestId' => Uuid::uuid4()->toString(),
+                    'accountId' => $accountId,
+                    'Content-Type' => 'application/json', 'Accept' => 'application/json'
+                ];
+            
+                $auth = [
+                    $authLogin,
+                    $authPass
+                ];
+    
+                $response = $client->request('POST', $url, [
+                    'auth' => $auth,
+                    'headers' => $headers,
+                    'body' => $body,
+                    'verify'  => false,
+                ]);
+                
+                $reference = json_decode($response->getBody())->transactionId;
+
+            }else{
+
+                $partner_reference = substr($request->numero, -4).time();
+                $base_url_bmo = env('BASE_BMO');
+
+                $client = new Client();
+                $url = $base_url_bmo."/operations/direct-collect-transfer";
+                
+                $body = [
+                    "amount" => $request->montant,
+                    "customer" => ["phone" => "+".$request->numero],
+                    "receiver" => ["phone" => env('COMPTE_DEBPOT_BMO')],
+                    "partnerReference" => $partner_reference,
+                    "reason" => "",
+                    "idType" => "",
+                    "idNumber" => "",
+                    "cardExpiration" => "" 
+                ];
+
+                $body = json_encode($body);
+        
+                $headers = [
+                    'X-Auth-ApiKey' => env('APIKEY_BMO'),
+                    'X-Auth-ApiSecret' => env('APISECRET_BMO'),
+                    'Content-Type' => 'application/json', 'Accept' => 'application/json'
+                ];
+        
+                $response = $client->request('POST', $url, [
+                    'headers' => $headers,
+                    'body' => $body,
+                    'verify'  => false,
+                ]);
+    
+                $reference = json_decode($response->getBody())->reference;
+            }
+            
+                
+            RetraitAdmin::create([
+                'id' => Uuid::uuid4()->toString(),
+                'reference' => $reference,
+                'type' => $request->type,
+                'customer_id' => $request->customer_id,
+                'last_digits' => $request->last_digits,
+                'montant' => $request->montant,
+                'numero' => $request->numero,
+                'user_id' => Auth::user()->id,
+                'deleted' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]);
+
+            
+            
+            return back()->withSuccess('Retrait effectué avec succes');
+            
+        } catch (\Exception $e) {
+            dd($e);
+            return  $e->getMessage();
+        };
+    }
+
+
 
     public function retraitKkp(Request $request){
         try {
@@ -345,7 +506,7 @@ class AppController extends Controller
             ]);
 
             $resultat = json_decode($response->getBody());
-            
+
             $status = "PENDING";
             $starttime = time();
 
@@ -398,9 +559,7 @@ class AppController extends Controller
         } catch (\Exception $e) {
             return  back()->withError($e->getMessage());
         };
-    }
-
-    
+    }    
 
     public function initTransactionKkiapay(Request $request){
         try{
@@ -519,6 +678,73 @@ class AppController extends Controller
             $depot->save();
         } catch (\Exception $e) {
             return sendError($e->getMessage(), [], 500);
+        };
+    }
+
+    public function saveParam(Request $request){
+        try {
+
+            Param::create([
+                'id' => Uuid::uuid4()->toString(),
+                'key_value' => $request->key_value,
+                'value' => $request->content,
+                'status' => 1,
+                'deleted' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]);
+            return back()->withSuccess('Enregistrement effefctué avec succes');
+        } catch (\Exception $e) {
+            dd($e);
+            return  $e->getMessage();
+        };
+    }
+
+    public function saveNotification(Request $request){
+        try {
+            
+            ModelNot::create([
+                'id' => Uuid::uuid4()->toString(),
+                'label' => $request->libelle,
+                'content' => $request->content,
+                'priority' => $request->priorite == "hot"? 1 : 0,
+                'deleted' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]);
+
+            return back()->withSuccess('Enregistrement effefctué avec succes');
+        } catch (\Exception $e) {
+            dd($e);
+            return  $e->getMessage();
+        };
+    }
+
+    public function savePublication(Request $request){
+        try {
+
+            Param::create([
+                'id' => Uuid::uuid4()->toString(),
+                'key_value' => $request->key_value,
+                'value' => $request->content,
+                'status' => 1,
+                'deleted' => 0,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]);
+            return back()->withSuccess('Enregistrement effefctué avec succes');
+        } catch (\Exception $e) {
+            dd($e);
+            return  $e->getMessage();
+        };
+    }
+
+    public static function testCron(){
+        try {
+            Log::info("test cron");
+        } catch (\Exception $e) {
+            Log::info($e);
+            return  $e->getMessage();
         };
     }
 }

@@ -224,15 +224,30 @@
                     @endif
 
                     @if (hasPermission('admin.transfert'))
-                        <li>
-                            <a href="/transfert/admin" @if (Route::currentRouteName() == 'admin.transfert') class="active" @endif>
-                                <i class="fa fa-money"></i> <span>Transfert Admin</span>
+                        <li class="treeview @if(in_array(Route::currentRouteName(), ['admin.transfert'])) active @endif">
+                            <a href="#">
+                                <i class="fa fa-money"></i> <span>Operations admin</span>
+                                <span class="pull-right-container">
+                                    <i class="fa fa-angle-left pull-right"></i>
+                                </span>
                             </a>
-                        </li>
-                        <li>
-                            <a href="/retrait/kkp" @if (Route::currentRouteName() == 'admin.transfert') class="active" @endif>
-                                <i class="fa fa-money"></i> <span>Retrait Kkp</span>
-                            </a>
+                            <ul class="treeview-menu">
+                                <li>
+                                    <a href="/retrait/kkp" @if (Route::currentRouteName() == 'admin.transfert') class="active" @endif>
+                                        <i class="fa fa-circle-o"></i> <span>Retrait Kkp</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/transfert/admin" @if (Route::currentRouteName() == 'admin.transfert') class="active" @endif>
+                                        <i class="fa fa-circle-o"></i> <span>Transfert</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/retrait/admin" @if (Route::currentRouteName() == 'admin.transfert') class="active" @endif>
+                                        <i class="fa fa-circle-o"></i> <span>Retrait</span>
+                                    </a>
+                                </li>
+                            </ul>
                         </li>
                     @endif
 

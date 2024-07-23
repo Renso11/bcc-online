@@ -27,23 +27,23 @@
                             <table class="table table-bordered table-striped example1">
                                 <thead>
                                     <tr>
-                                        <th>Compte GTP</th>
-                                        <th>Program ID</th>
-                                        <th>Sens</th>
+                                        <th>Date d'opération</th>
+                                        <th>Telephone</th>
                                         <th>Customer ID</th>
                                         <th>Last digits</th>
                                         <th>Montant</th>
+                                        <th>Initialisateur</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach ($transferts as $item)
                                         <tr>
-                                            <td>{{ $item->compte }}</td>
-                                            <td>{{ $item->program }}</td>
-                                            <td>{{ $item->sens }}</td>
+                                            <td>{{ $item->created_at }}</td>
+                                            <td>{{ $item->numero }}</td>
                                             <td>{{ $item->customer_id }}</td>
                                             <td>{{ $item->last_digits }}</td>
                                             <td>{{ $item->montant }}</td>
+                                            <td>{{ $item->user ? $item->user->name.' '.$item->user->lastname : '' }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -69,47 +69,46 @@
                                 <div class="col-md-12">
                                     <div class="form-group">
                                         <label for="">Que voulez vous faire ?</label>
-                                        <select class="form-control select2bs4" name="sens">
-                                            <option value="debit">Envoyer vers la carte</option>
-                                            <option value="credit">Retirer de la carte</option>
+                                        <select class="form-control select2bs4" name="type" id="type">
+                                            <option value="card">Transfert vers carte</option>
+                                            <option value="momo">Transfert vers momo</option>
+                                            <option value="bmo">Transfert vers bmo</option>
                                         </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="">Compte GTP ID</label>
-                                        <input type="text" required class="form-control" name="compte" placeholder="Compte GTP ID">
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="">4 dernier compte GTP</label>
-                                        <input type="text" required class="form-control" name="compte_last" placeholder="4 dernier compte GTP">
                                     </div>
                                 </div>
                                 <div class="col-md-12">
                                     <div class="form-group">
                                         <label for="">Montant de l'operation</label>
-                                        <input type="text" required class="form-control" name="montant" placeholder="Montant debut">
+                                        <input type="text" required class="form-control" name="montant" placeholder="Montant">
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="">Customer ID  (Carte ou compte)</label>
-                                        <input type="text" required class="form-control" name="customer_id" placeholder="Montant debut">
+                                <div id="card">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="">Customer ID  </label>
+                                            <input type="text" class="form-control" name="customer_id" placeholder="Customer ID">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="">4 dernier chiffre </label>
+                                            <input type="text" class="form-control" name="last_digits" placeholder="4 dernier chiffre">
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="">4 dernier chiffre (Carte ou compte)</label>
-                                        <input type="text" required class="form-control" name="last_digits" placeholder="Montant fin">
+                                <div id="bmomo" style="display: none">
+                                    <div class="col-md-12">
+                                        <div class="form-group">
+                                            <label for="">Numero du transfert</label>
+                                            <input type="text" class="form-control" name="numero" placeholder="Numero transfert">
+                                        </div>
                                     </div>
                                 </div>
                             </div> 
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-danger" data-dismiss="modal">Non</button>
-                            <button type="submit" class="btn btn-primary">Commencer</button>
+                            <button type="button" class="btn btn-danger" data-dismiss="modal">Annuler</button>
+                            <button type="submit" class="btn btn-primary">Transferer</button>
                         </div>
                     </div>
                 </form>  
@@ -128,6 +127,17 @@
         });
         $('.select2bs4').select2({
             theme: 'bootstrap4'
+        })
+
+        $('#type').on('change', function(e) {
+            if($(this).val() != "card"){
+                $("#card").hide()
+                $("#bmomo").show()
+            }else{
+                $("#bmomo").hide()
+                $("#card").show()
+            }
+
         })
     </script>
 @endsection

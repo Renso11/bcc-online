@@ -63,10 +63,16 @@ Route::post('/service/desactivate/{id}', [AppController::class, 'serviceDesactiv
 
 Route::get('/app/admin', [AppController::class, 'appAdmin'])->name('admin.app.admin')->middleware(['auth','hasPermission']);
 Route::post('/service/admin/add', [AppController::class, 'serviceAdminAdd'])->middleware(['auth']);
+
 Route::get('/transfert/admin', [AppController::class, 'transfertAdmin'])->name('admin.transfert')->middleware(['auth']);
 Route::post('/transfert/admin/add', [AppController::class, 'transfertAdminAdd'])->middleware(['auth']);
-Route::get('/retrait/kkp', [AppController::class, 'retraitKkp'])->name('retrait.kkp')->middleware(['auth']);
-Route::post('/retrait/kkp/add', [AppController::class, 'retraitKkpAdd'])->middleware(['auth']);
+Route::get('/retrait/admin', [AppController::class, 'retraitAdmin'])->name('retrait.kkp')->middleware(['auth']);
+Route::post('/retrait/admin/add', [AppController::class, 'retraitAdminAdd'])->middleware(['auth']);
+
+Route::post('/save/param', [AppController::class, 'saveParam'])->middleware(['auth']);
+Route::post('/save/notification', [AppController::class, 'saveNotification'])->middleware(['auth']);
+
+Route::post('/save/publication', [AppController::class, 'savePublication'])->middleware(['auth']);
 
 Route::get('/tpes', [TpeController::class, 'index'])->name('admin.tpes')->middleware(['auth','hasPermission']);
 Route::post('/tpe/add', [TpeController::class, 'tpeAdd'])->middleware(['auth']);

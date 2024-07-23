@@ -387,7 +387,7 @@ class PartenaireController extends Controller
                         return back()->withWarning("Echec lors du remboursement de la transaction");                        
                     }
                 }else{
-                    $momoCredited = $paiementService->momoCredited($response->client->phone, $response->amount,Auth::user());
+                    $momoCredited = $paiementService->momoCredited($response->client->phone, $response->amount);
                     if($momoCredited == "FAILED"){
                         return back()->withWarning("Echec lors du remboursement de la transaction");
                     }else if($momoCredited == "FAILED_TIME"){
